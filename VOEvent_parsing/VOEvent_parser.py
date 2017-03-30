@@ -399,6 +399,32 @@ def checkelev(coordinates, time, mylocation, horizondef, horizontype):
         observable = 0
         print("Object below site horizon")
     return observable
+def checkhadec(coordinates, time, mylocation, hadeclims):
+    #hadeclims = (limdecmin,limdecmax,limharise,limhaset)
+    observable = 1
+    #objaltaz = coordinates.transform_to(astropy.coordinates.AltAz(time), location=mylocation)
+    loctime = Time(time,location = mylocation)
+    LST = loctime.sidereal_time("apparent")
+    
+    LHA = coordinates.ra + LST
+    print ("Hour angle = ", LHA)
+    #testing for a valid hour angle
+    if LHA >= 24 * u.hourangle or LHA < 0 * u.hourangle :
+        print ("hour angle overflow")
+        observable = 0
+    #Testing if object is in hadec blind spot
+    if LHA >= hadeclims[2]*u.deg and LHA <= hadeclims[3]*u.deg:
+        observable = 0
+        print("Object HA below limits", LHA)
+        
+    if coordinates.dec <= hadeclims[0]*u.deg:
+        observable = 0
+        print("Object DEC below limits", LHA)
+    if coordinates.dec >= hadeclims[1]*u.deg:
+        observable = 0
+        print("Object DEC over limits", LHA)
+    
+    return observable
 
 
 
@@ -448,7 +474,7 @@ def main(url,pwd):
     site = "'Tarot_Reunion'"
     
     print ("working on site: %s", site); sys.stdout.flush()
-    location, horizondef, horizontype = get_obs_info(site,pwd)
+    location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
     total, a,b,c = optimize_quin(hpx, site_number(site), site_field(site))
     myfields = build_fields(hpx, a, b, c, site_number(site)*2, site_field(site))
     print (myfields); sys.stdout.flush()
@@ -459,6 +485,7 @@ def main(url,pwd):
         sunok = checksun(thefields["coords"][index], current_time, location)
         moonok = checkmoon(thefields["coords"][index], current_time, location)
         elevok = checkelev(thefields["coords"][index], current_time, location, horizondef,horizontype)
+        hadecok = checkhadec(thefields["coords"][index], current_time, location, hadeclims)
         print (index, sunok, moonok, elevok)
     return thefields,location
     
@@ -510,5 +537,6 @@ def get_obs_info(sitename,pwd):
     #Convert the horizon information into data Table of angle values
     myhorizon = convert_horizon(horizondef,horizontype)
     print(myhorizon)
-    return location, myhorizon, horizontype
+    hadeclims = (limdecmin,limdecmax,limharise,limhaset)
+    return location, myhorizon, horizontype, hadeclims
     
