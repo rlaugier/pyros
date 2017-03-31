@@ -28,6 +28,8 @@ from datetime import datetime
 import astropy.units as u
 from astropy.table import Table
 
+from astroplan import Observer
+
 import subprocess
 
 import pymysql
@@ -328,8 +330,12 @@ def get_db_info(connection, table, entry, keycolumn, keyvalue):
     query = "SELECT " + entry + " FROM " + table + " WHERE " + keycolumn + "= " + keyvalue + ";"
     mycursor = connection.cursor()
     countrow = mycursor.execute(query)
-    if countrow != 1 : error =1; print("error fetching data in database")
-    return error, mycursor.fetchone()[0]
+    if countrow != 1 :
+        error =1
+        print("error fetching data in database")
+        value = ""
+    value = mycursor.fetchone()[0]
+    return error, value
     
 '''This assumes that the horizondef absissa is monotonous and increasing!!!
 This assumes that the intervals cover ALL the possibilities
@@ -456,6 +462,36 @@ def site_number(site):
         if case("'Zadko_Australia'"):
             return 5
             break
+def site_timings(site):
+    for case in switch(site):
+        if case("'Tarot_Calern'"):
+            settime = 30     
+            readoutTime = 10
+            exptime = 120
+            nexp = 2
+            return settime,readoutTime,exptime,nexp
+            break
+        if case("'Tarot_Chili'"):
+            settime = 30     
+            readoutTime = 10
+            exptime = 120
+            nexp = 2
+            return settime,readoutTime,exptime,nexp
+            break
+        if case("'Tarot_Reunion'"):
+            settime = 30     
+            readoutTime = 10
+            exptime = 120
+            nexp = 3
+            return settime,readoutTime,exptime,nexp
+            break
+        if case("'Zadko_Australia'"):
+            settime = 90     
+            readoutTime = 10
+            exptime = 120
+            nexp = 2
+            return settime,readoutTime,exptime,nexp
+            break
 
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
@@ -471,8 +507,8 @@ def main(url,pwd):
     hpx, header = load_skymap(name)
 ##################################################################################
 ###Site    
-    site = "'Tarot_Reunion'"
-    
+    #site = "'Tarot_Reunion'"
+    site = "'Zadko_Australia'"
     print ("working on site: %s", site); sys.stdout.flush()
     location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
     total, a,b,c = optimize_quin(hpx, site_number(site), site_field(site))
@@ -486,8 +522,48 @@ def main(url,pwd):
         moonok = checkmoon(thefields["coords"][index], current_time, location)
         elevok = checkelev(thefields["coords"][index], current_time, location, horizondef,horizontype)
         hadecok = checkhadec(thefields["coords"][index], current_time, location, hadeclims)
-        print (index, sunok, moonok, elevok)
+        print (index, sunok, moonok, elevok,hadecok)
     return thefields,location
+    
+def next_sunset(mylocation, mytime):
+    astropy.coordinates.solar_system_ephemeris.set('builtin')
+    SunObject = astropy.coordinates.get_sun(mytime)
+    sunaltaz = SunObject.transform_to(astropy.coordinates.AltAz(obstime=mytime, location=mylocation))
+    if sunaltaz.alt > -10*u.deg :
+        night = 0
+    else :
+        night = 1
+    set_time=-100*u.hour
+    for i in np.arange(0, 24, 0.25):
+        if night == 0:
+            
+            time = mytime + i*u.hour
+            sunaltaz = SunObject.transform_to(astropy.coordinates.AltAz(obstime=time, location=mylocation))
+            if night == 0 and sunaltaz.alt < -10*u.deg:
+                set_time = time
+                break
+        elif night == 1:
+            night = 1
+    return set_time
+def build_cyclegrid(number,site):
+    settime,readoutTime,exptime,nexp = site_timings(site)
+    timegrid = []
+    
+    #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime
+    totalexpscene = nexp * exptime
+    scenelength = totalexpscene + nexp * readoutTime 
+    timeshift = scenelength + settime
+    freetime = 0
+    cycleTime = number * timeshift + freetime
+    length = 60 * 60 * 24
+    for i in np.arange(0,length,cycleTime):
+        thetime = Time(i*u.second,format=u'cxcsec')     
+        timegrid.append(thetime)
+    timetable = Table()
+    timetable["date"]=timegrid
+    return timetable
+    
+        
     
 def clean_table(fields):
     coords = astropy.coordinates.SkyCoord(ra=fields["ra"]*u.deg,dec=fields["dec"]*u.deg,frame="fk5")
