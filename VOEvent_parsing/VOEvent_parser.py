@@ -495,7 +495,7 @@ def site_timings(site):
 
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
-def main(url,pwd):
+def main(url,site,pwd):
     current_time = Time(datetime.utcnow(), scale='utc')
     print("Date is");print(current_time.value)
     print("retrieving skymap from %s"% url); sys.stdout.flush()
@@ -508,7 +508,6 @@ def main(url,pwd):
 ##################################################################################
 ###Site    
     #site = "'Tarot_Reunion'"
-    site = "'Zadko_Australia'"
     print ("working on site: %s", site); sys.stdout.flush()
     location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
     total, a,b,c = optimize_quin(hpx, site_number(site), site_field(site))
@@ -516,14 +515,40 @@ def main(url,pwd):
     print (myfields); sys.stdout.flush()
     thefields = clean_table(myfields)
     print (thefields); sys.stdout.flush()
+    print(thefields["coords"][0])
     print ("Observavility from %s, at location %s" % (site, location))
-    for index in np.arange(0,len(thefields)-1,1):
-        sunok = checksun(thefields["coords"][index], current_time, location)
-        moonok = checkmoon(thefields["coords"][index], current_time, location)
-        elevok = checkelev(thefields["coords"][index], current_time, location, horizondef,horizontype)
-        hadecok = checkhadec(thefields["coords"][index], current_time, location, hadeclims)
-        print (index, sunok, moonok, elevok,hadecok)
+    mycyclegrid = build_cyclegrid(10,site)
+    fieldobservability = []
+    for i in np.arange(0,len(thefields)-1-1,1):
+        obsevability = []
+        for j in np.arange(0,len(mycyclegrid)-1-1,1):
+            print (i,j)
+            result = is_observable(thefields["coords"][i],mycyclegrid["date"][j],location,horizondef,horizontype,hadeclims)
+            obsevability.append(result)
+            print("done",i,j)
+        print (obsevability)
+        fieldobservability.append(obsevability)
+    
+#    for index in np.arange(0,len(thefields)-1,1):
+#        sunok = checksun(thefields["coords"][index], current_time, location)
+#        moonok = checkmoon(thefields["coords"][index], current_time, location)
+#        elevok = checkelev(thefields["coords"][index], current_time, location, horizondef,horizontype)
+#        hadecok = checkhadec(thefields["coords"][index], current_time, location, hadeclims)
+#        print (index, sunok, moonok, elevok,hadecok)
+    print (fieldobservability)
     return thefields,location
+    
+    
+def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
+    sunok = checksun(coords, time, location)
+    if sunok == 0: return 0
+    moonok = checkmoon(coords, time, location)
+    elevok = checkelev(coords, time, location, horizondef,horizontype)
+    hadecok = checkhadec(coords, time, location, hadeclims)
+    print (sunok, moonok, elevok,hadecok)
+    observable = sunok * moonok * elevok * hadecok
+    return observable
+    
     
 def next_sunset(mylocation, mytime):
     astropy.coordinates.solar_system_ephemeris.set('builtin')
