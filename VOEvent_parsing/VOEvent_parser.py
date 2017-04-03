@@ -348,7 +348,8 @@ def interpolate(dataset, target,horizontype):
         if ((target < dataset["azim"][0])or(target > dataset["azim"][len(dataset["azim"])-1])):
             print ("error, target out of range")
             return value
-        for index in np.arange(0,len(dataset["azim"])-1,1):# "-1-1" allows us to go from 0 to the penultimate
+        for index in np.arange(0,len(dataset["azim"])-1,1):# "-1" allows us to go from 0 to the penultimate
+            print("Between",dataset["azim"][index],"and ",dataset["azim"][index+1])
             if ((dataset["azim"][index] <= target) and (dataset["azim"][index+1]>= target)):
                 #Interpolation of target in
                 value = dataset["elev"][index] + (target - dataset["azim"][index]) * (dataset["elev"][index+1] - dataset["elev"][index]) / (dataset["azim"][index+1] - dataset["azim"][index])
@@ -381,6 +382,7 @@ def checksun(coordinates, time, mylocation):
     sunaltaz = SunObject.transform_to(astropy.coordinates.AltAz(obstime=time, location=mylocation))
     if sunaltaz.alt >= -5*u.deg:
         observable = 0
+        return observable
     if SunObject.separation(coordinates) <= 30*u.deg:
         observable = 0
         print("Too close to the sun")
@@ -400,6 +402,10 @@ def checkelev(coordinates, time, mylocation, horizondef, horizontype):
     if objaltaz.alt <= 10*u.deg:
         observable = 0
         print("Object too low (10°)")
+        return observable
+    #This condition is assumed sufficient for unsupported hadec horizons
+    if horizontype == "hadec":
+        return observable
     local_horizon = interpolate(horizondef, objaltaz.az, horizontype)
     if objaltaz.alt - local_horizon <= 0*u.deg:
         observable = 0
@@ -413,22 +419,25 @@ def checkhadec(coordinates, time, mylocation, hadeclims):
     LST = loctime.sidereal_time("apparent")
     
     LHA = coordinates.ra + LST
-    print ("Hour angle = ", LHA)
     #testing for a valid hour angle
     if LHA >= 24 * u.hourangle or LHA < 0 * u.hourangle :
-        print ("hour angle overflow")
-        observable = 0
+        #print ("hour angle overflow",LHA)
+        LHA = LHA - 24*u.hourangle
+        #print ("corrected:",LHA)
     #Testing if object is in hadec blind spot
     if LHA >= hadeclims[2]*u.deg and LHA <= hadeclims[3]*u.deg:
         observable = 0
         print("Object HA below limits", LHA)
+        return observable
         
     if coordinates.dec <= hadeclims[0]*u.deg:
         observable = 0
-        print("Object DEC below limits", LHA)
+        print("Object DEC below limits", coordinates.dec)
+        return observable
     if coordinates.dec >= hadeclims[1]*u.deg:
         observable = 0
-        print("Object DEC over limits", LHA)
+        print("Object DEC over limits", coordinates.dec)
+        return observable
     
     return observable
 
@@ -508,35 +517,67 @@ def main(url,site,pwd):
 ##################################################################################
 ###Site    
     #site = "'Tarot_Reunion'"
+    nfields = site_number(site)
     print ("working on site: %s", site); sys.stdout.flush()
     location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
-    total, a,b,c = optimize_quin(hpx, site_number(site), site_field(site))
-    myfields = build_fields(hpx, a, b, c, site_number(site)*2, site_field(site))
+    total, a,b,c = optimize_quin(hpx, nfields, site_field(site))
+    myfields = build_fields(hpx, a, b, c, nfields*2, site_field(site))
     print (myfields); sys.stdout.flush()
     thefields = clean_table(myfields)
     print (thefields); sys.stdout.flush()
     print(thefields["coords"][0])
     print ("Observavility from %s, at location %s" % (site, location))
-    mycyclegrid = build_cyclegrid(10,site)
+    mycyclegrid,scenelength = build_cyclegrid(15,site)
+    #Determining observability to remove excess fields
     fieldobservability = []
-    for i in np.arange(0,len(thefields)-1-1,1):
+    for i in np.arange(0,len(thefields),1):
         obsevability = []
-        for j in np.arange(0,len(mycyclegrid)-1-1,1):
-            print (i,j)
-            result = is_observable(thefields["coords"][i],mycyclegrid["date"][j],location,horizondef,horizontype,hadeclims)
+        for j in np.arange(0,len(mycyclegrid),1):
+            result = is_observable(thefields["coords"][i],current_time + mycyclegrid["date"][j]*u.second,location,horizondef,horizontype,hadeclims)
             obsevability.append(result)
-            print("done",i,j)
         print (obsevability)
         fieldobservability.append(obsevability)
+    #thefields["obsevability"]=fieldobservability
+    thefields["observability"] = fieldobservability
+    print (thefields,fieldobservability)
+    toremove=[]
+    for i in np.arange(0,len(thefields),1):
+        if np.count_nonzero(thefields["observability"][i])<3:
+            toremove.append(i)
+    thefields.remove_rows(toremove)
+    print(thefields)
+    if len(thefields)>nfields:
+        thefields=thefields[0:nfields]
+    elif len(thefields)==0:
+        return thefields,location,fieldobservability
+    thefields["index"]=np.arange(0,len(thefields),1)
+    print(thefields)
+    print("proba covered:",np.sum(thefields["proba"]))
+    #unable to sort the fields at this point because of SkyCoord object.
+    #thefields["temp"]=thefields["coords"].ra
+    mycyclegrid,scenelength = build_cyclegrid(len(thefields),site)
     
-#    for index in np.arange(0,len(thefields)-1,1):
-#        sunok = checksun(thefields["coords"][index], current_time, location)
-#        moonok = checkmoon(thefields["coords"][index], current_time, location)
-#        elevok = checkelev(thefields["coords"][index], current_time, location, horizondef,horizontype)
-#        hadecok = checkhadec(thefields["coords"][index], current_time, location, hadeclims)
-#        print (index, sunok, moonok, elevok,hadecok)
-    print (fieldobservability)
-    return thefields,location
+    scenes = []
+    for i in np.arange(0,len(thefields),1):
+        obsevability = []
+        timeindex = 0
+        for j in np.arange(0,len(mycyclegrid),1):
+            exacttime = mycyclegrid["date"][j]*u.second+i*scenelength*u.second + current_time
+            result = is_observable(thefields["coords"][i],exacttime,location,horizondef,horizontype,hadeclims)
+            if result == 1:
+                scenes.append([thefields["index"][i],timeindex,exacttime,thefields["coords"][i]])
+                timeindex += 1
+        
+        fieldobservability.append(obsevability)
+    print (scenes)
+    revscenes = np.transpose(scenes)
+    thescenes = Table()
+    thescenes["index"]=revscenes[0]
+    thescenes["tindex"]=revscenes[1]
+    thescenes["time"]=revscenes[2]
+    thescenes["coords"]=revscenes[3]
+
+    return thefields,location,thescenes
     
     
 def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
@@ -582,12 +623,28 @@ def build_cyclegrid(number,site):
     cycleTime = number * timeshift + freetime
     length = 60 * 60 * 24
     for i in np.arange(0,length,cycleTime):
+        thetime = i     
+        timegrid.append(thetime)
+    timetable = Table()
+    timetable["date"]=timegrid
+    return timetable,scenelength
+def build_finegrid(number,site):
+    settime,readoutTime,exptime,nexp = site_timings(site)
+    timegrid = []
+    
+    #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime
+    totalexpscene = nexp * exptime
+    scenelength = totalexpscene + nexp * readoutTime 
+    timeshift = scenelength + settime
+    freetime = 0
+    cycleTime = number * timeshift + freetime
+    length = 60 * 60 * 24
+    for i in np.arange(0,length,cycleTime):
         thetime = Time(i*u.second,format=u'cxcsec')     
         timegrid.append(thetime)
     timetable = Table()
     timetable["date"]=timegrid
     return timetable
-    
         
     
 def clean_table(fields):
@@ -604,7 +661,8 @@ def convert_horizon(horizondef,horizontype):
     lims[len(lims)-1] = lims[len(lims)-1].replace("}","")
     lims[:]=[x.split(" ") for x in lims]
     if horizontype == "hadec" :
-        limites = Table(names =["dec","limrise","limset"], dtype =("f4","f4","f4")) 
+        limites = Table(names =["dec","limrise","limset"], dtype =("f4","f4","f4"))
+        return limites
     elif horizontype == "altaz":
         limites = Table(names =["azim","elev"], dtype =("f4","f4"))
     for item in lims :
