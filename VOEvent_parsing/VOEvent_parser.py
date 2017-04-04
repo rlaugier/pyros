@@ -502,6 +502,21 @@ def site_timings(site):
             return settime,readoutTime,exptime,nexp
             break
 
+def process_global(url,pwd):
+    start_time = Time(datetime.utcnow(), scale='utc')
+    sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
+    scenes = Table()
+    for site in sitenames:
+        sitescenes = Table()
+        fields,mylocation,sitescenes = main(url,site,pwd)
+        scenes = astropy.table.vstack([scenes,sitescenes])
+    print (scenes)
+    end_time = Time(datetime.utcnow(), scale='utc')
+    length = end_time - start_time
+    print ("Executed in ",length.sec)
+    return scenes
+        
+
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
 def main(url,site,pwd):
@@ -518,7 +533,7 @@ def main(url,site,pwd):
 ###Site    
     #site = "'Tarot_Reunion'"
     nfields = site_number(site)
-    print ("working on site: %s", site); sys.stdout.flush()
+    print ("working on site: %s"% (site)); sys.stdout.flush()
     location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
     total, a,b,c = optimize_quin(hpx, nfields, site_field(site))
     myfields = build_fields(hpx, a, b, c, nfields*2, site_field(site))
@@ -527,7 +542,7 @@ def main(url,site,pwd):
     print (thefields); sys.stdout.flush()
     print(thefields["coords"][0])
     print ("Observavility from %s, at location %s" % (site, location))
-    mycyclegrid,scenelength = build_cyclegrid(15,site)
+    mycyclegrid,scenelength = build_cyclegrid(15,site,24)
     #Determining observability to remove excess fields
     fieldobservability = []
     for i in np.arange(0,len(thefields),1):
@@ -555,7 +570,7 @@ def main(url,site,pwd):
     print("proba covered:",np.sum(thefields["proba"]))
     #unable to sort the fields at this point because of SkyCoord object.
     #thefields["temp"]=thefields["coords"].ra
-    mycyclegrid,scenelength = build_cyclegrid(len(thefields),site)
+    mycyclegrid,scenelength = build_cyclegrid(len(thefields),site,48)
     
     scenes = []
     for i in np.arange(0,len(thefields),1):
@@ -565,7 +580,7 @@ def main(url,site,pwd):
             exacttime = mycyclegrid["date"][j]*u.second+i*scenelength*u.second + current_time
             result = is_observable(thefields["coords"][i],exacttime,location,horizondef,horizontype,hadeclims)
             if result == 1:
-                scenes.append([thefields["index"][i],timeindex,exacttime,thefields["coords"][i]])
+                scenes.append([site,thefields["index"][i],timeindex,exacttime,thefields["coords"][i]])
                 timeindex += 1
         
         fieldobservability.append(obsevability)
@@ -611,7 +626,7 @@ def next_sunset(mylocation, mytime):
         elif night == 1:
             night = 1
     return set_time
-def build_cyclegrid(number,site):
+def build_cyclegrid(number,site,period):
     settime,readoutTime,exptime,nexp = site_timings(site)
     timegrid = []
     
@@ -621,7 +636,7 @@ def build_cyclegrid(number,site):
     timeshift = scenelength + settime
     freetime = 0
     cycleTime = number * timeshift + freetime
-    length = 60 * 60 * 24
+    length = 60 * 60 * period
     for i in np.arange(0,length,cycleTime):
         thetime = i     
         timegrid.append(thetime)
