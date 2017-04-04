@@ -57,8 +57,32 @@ class switch(object):
             return False
             
             
-            
-            
+def build_request(rname,strat,priority,pwd):
+    request = '''
+    <?xml version="1.0" encoding="UTF-8" ?>  
+    <depotcador>  
+    <description>Depot de requete pour CADOR</description>  
+    <versionmsg>req0.1</versionmsg>  
+    <login>monlogin</login>  
+    <passwd>monpassword</passwd>  
+    <rname>toto</rname>  
+    <strategy>0</strategy>  
+    <rpriority>0</rpriority>  
+    </depotcador>
+    '''
+    request.replace("monlogin","alert")
+    request.replace("monpassword",pwd)
+    request.replace("toto",rname)
+    files = {'file': ('marequete.xml', request)}
+    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/list", files=files)
+    depot = lxml.etree.XML(ans.content)
+    idreq = getxmlval(depot,"idreq")
+    return idreq
+def getxmlval(root,tag):
+    vals=[]
+    for element in root.iter(tag=tag):
+        vals.append(element.text)
+    return vals
 
 def download_skymap(myurl):
     #subprocess.check_call(['curl', '-O', '--netrc', myurl])
@@ -355,7 +379,7 @@ def interpolate(dataset, target,horizontype):
                 value = dataset["elev"][index] + (target - dataset["azim"][index]) * (dataset["elev"][index+1] - dataset["elev"][index]) / (dataset["azim"][index+1] - dataset["azim"][index])
                 break
         if value == 90*u.deg :
-            print ("error: Couldn't interpolate horizon. Azimuth, result = ")
+            print ("error: Couldn't interpolate horizon. Azimuth, result =============================== ")
             print(target,value)
             return value
         else :
@@ -432,11 +456,11 @@ def checkhadec(coordinates, time, mylocation, hadeclims):
         
     if coordinates.dec <= hadeclims[0]*u.deg:
         observable = 0
-        print("Object DEC below limits", coordinates.dec)
+        print("Object DEC below limits=================================", coordinates.dec)
         return observable
     if coordinates.dec >= hadeclims[1]*u.deg:
         observable = 0
-        print("Object DEC over limits", coordinates.dec)
+        print("Object DEC over limits==================================", coordinates.dec)
         return observable
     
     return observable
@@ -514,6 +538,7 @@ def process_global(url,pwd):
     end_time = Time(datetime.utcnow(), scale='utc')
     length = end_time - start_time
     print ("Executed in ",length.sec)
+    
     return scenes
         
 
