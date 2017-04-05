@@ -11,7 +11,6 @@ Created on Wed Mar 22 10:24:13 2017
 import tempfile
 import shutil
 import sys
-import glob
 # Third-party imports
 import gcn
 import gcn.handlers
@@ -20,7 +19,7 @@ import requests
 import healpy as hp
 import numpy as np
 from time import sleep
-import lxml
+from lxml import etree
 
 import astropy.coordinates
 from astropy.time import Time
@@ -33,6 +32,7 @@ from astroplan import Observer
 import subprocess
 
 import pymysql
+import os
 
 
 
@@ -57,9 +57,8 @@ class switch(object):
             return False
             
             
-def build_request(rname,strat,priority,pwd):
-    request = '''
-    <?xml version="1.0" encoding="UTF-8" ?>  
+def post_request(rname,strat,priority,pwd):
+    t = '''<?xml version="1.0" encoding="UTF-8" ?>  
     <depotcador>  
     <description>Depot de requete pour CADOR</description>  
     <versionmsg>req0.1</versionmsg>  
@@ -68,16 +67,115 @@ def build_request(rname,strat,priority,pwd):
     <rname>toto</rname>  
     <strategy>0</strategy>  
     <rpriority>0</rpriority>  
-    </depotcador>
-    '''
-    request.replace("monlogin","alert")
-    request.replace("monpassword",pwd)
-    request.replace("toto",rname)
-    files = {'file': ('marequete.xml', request)}
-    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/list", files=files)
-    depot = lxml.etree.XML(ans.content)
-    idreq = getxmlval(depot,"idreq")
+    </depotcador>'''
+    strat = "0"
+    priority = "0"
+    depotstring = build_request2(rname,strat,priority,pwd)
+    files = {'file': ('marequete.xml', depotstring)}
+    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/", files=files)
+    depot = etree.XML(ans.content)
+    idreq = getxmlval(depot,"idreq")[0]
+    print("Successfuly added request:",idreq)
     return idreq
+def post_scene(idreq,entry,exsps,spriority,idtelescope,processing,date,ddate):
+    emlements= [
+    "description",
+    "versionmsg",
+    "login",
+    "passwd",  
+    "type",  
+    "sname",  
+    "ra",  
+    "decl",  
+    "altmin",  
+    "moonmin",  
+    "t1",  
+    "t2",  
+    "t3",  
+    "t4",  
+    "t5",  
+    "t6",  
+    "f1",  
+    "f2",  
+    "f3",  
+    "f4",  
+    "f5",  
+    "f6",  
+    "dra1", 
+    "dra2",  
+    "dra3",  
+    "dra4",  
+    "dra5",  
+    "dra6", 
+    "ddec1",
+    "ddec2",
+    "ddec3",
+    "ddec4",
+    "ddec5",
+    "ddec6",
+    "spriority",  
+    "idtelescope", 
+    "processing",
+    "date>0",
+    "ddate" 
+    ]
+    values = [
+    <description>Depot de scene pour CADOR</description>  
+    "0.1",  
+    "monlogin", 
+    "monpassword",
+    "IM",
+    "Small Magelanic Cloud",
+    "+00:52:42",
+    "-72:49:00",
+    "90", 
+    "50",
+    "10",
+    "0",
+    "0",
+    "0",
+    "0",
+    "0",
+    "NoFilter",
+    "NoFilter", 
+    "NoFilter",
+    "NoFilter",
+    "NoFilter",
+    "NoFilter",
+    "0.00418098",
+    "0.00418098", 
+    "0.00418098", 
+    "0.00418098",
+    "0.00418098", 
+    "0.00418098",
+    "0",
+    "0", 
+    "0", 
+    "0", 
+    "0", 
+    "0", 
+    "0", 
+    "0",
+    "0", 
+    "0</date>  
+    "0</ddate>  
+    ]
+    
+def build_request2(rname,strat,priority,pwd):
+    elements = ["description","versionmsg","login","passwd","rname","strategy","rpriority"]
+    values = ["Depot de requete pour CADOR","req0.1","alert","monpassword","toto10","0","0"]
+    values[3] = pwd
+    values[4] = rname
+    values[5] = strat
+    values[6] = priority
+    depot = etree.Element("depotcador")
+    for index in np.arange(0,len(elements),1):
+        etree.SubElement(depot, elements[index]).text = values[index]
+    
+    print(etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8"))
+    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
+    return stringform
+
 def getxmlval(root,tag):
     vals=[]
     for element in root.iter(tag=tag):
@@ -530,9 +628,14 @@ def process_global(url,pwd):
     start_time = Time(datetime.utcnow(), scale='utc')
     sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
     scenes = Table()
+    print("retrieving skymap from %s"% url); sys.stdout.flush()
+    download_skymap(url)
+    name = os.path.basename(url)
+    print("loading skymap named %s"% name); sys.stdout.flush()
+    hpx, header = load_skymap(name)
     for site in sitenames:
         sitescenes = Table()
-        fields,mylocation,sitescenes = main(url,site,pwd)
+        fields,mylocation,sitescenes = main(hpx, header, site, pwd)
         scenes = astropy.table.vstack([scenes,sitescenes])
     print (scenes)
     end_time = Time(datetime.utcnow(), scale='utc')
@@ -544,16 +647,10 @@ def process_global(url,pwd):
 
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
-def main(url,site,pwd):
+def main(hpx,header,site,pwd):
     current_time = Time(datetime.utcnow(), scale='utc')
     print("Date is");print(current_time.value)
-    print("retrieving skymap from %s"% url); sys.stdout.flush()
-    download_skymap(url)
-    names = url.split("/")
-    names.reverse()
-    name = names[0]
-    print("loading skymap named %s"% name); sys.stdout.flush()
-    hpx, header = load_skymap(name)
+
 ##################################################################################
 ###Site    
     #site = "'Tarot_Reunion'"
@@ -712,7 +809,7 @@ def convert_horizon(horizondef,horizontype):
 
     
 def get_obs_info(sitename,pwd):
-    conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')
+    conn = pymysql.connect(host='tarot9.obs-hp.fr', user='tarot', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
     error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)
