@@ -18,7 +18,6 @@ import gcn.notice_types
 import requests
 import healpy as hp
 import numpy as np
-from time import sleep
 from lxml import etree
 
 import astropy.coordinates
@@ -26,8 +25,6 @@ from astropy.time import Time
 from datetime import datetime
 import astropy.units as u
 from astropy.table import Table
-
-from astroplan import Observer
 
 import subprocess
 
@@ -58,16 +55,6 @@ class switch(object):
             
             
 def post_request(rname,strat,priority,pwd):
-    t = '''<?xml version="1.0" encoding="UTF-8" ?>  
-    <depotcador>  
-    <description>Depot de requete pour CADOR</description>  
-    <versionmsg>req0.1</versionmsg>  
-    <login>monlogin</login>  
-    <passwd>monpassword</passwd>  
-    <rname>toto</rname>  
-    <strategy>0</strategy>  
-    <rpriority>0</rpriority>  
-    </depotcador>'''
     strat = "0"
     priority = "0"
     depotstring = build_request(rname,strat,priority,pwd)
@@ -78,19 +65,46 @@ def post_request(rname,strat,priority,pwd):
     print("Successfuly added request:",idreq)
     return idreq
     
-def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,date,ddate):
+def post_scene(prefix,idreq,entry,exps,filters,pwd):
     
+    ddate = "1"
+    processing = "0"
+    spriority = "0"
+    depotstring = build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd)
+    files = {'file': ('mascene.xml', depotstring)}
+    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/"+str(idreq), files=files)
+    print (ans.content)
+    depot = etree.XML(ans.content)
+    try :
+        idscene = getxmlval(depot,"idscene")[0]
+    except:
+        print("fail to parse response in xml")
+        return
+    print("Successfuly added scene:",idscene)
+    for element in depot.iter():
+        print(element.text)
+    return idreq
+def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
+    print()
+    ra = str((int)(entry["coords"].ra.hms[0])) + ":" +\
+        str((int)(entry["coords"].ra.hms[1])) + ":" +\
+        str((int)(entry["coords"].ra.hms[2]))
+    dec = str((int)(entry["coords"].dec.dms[0])) + ":" +\
+        str((int)(abs(entry["coords"].dec.dms[1]))) + ":" +\
+        str((int)(abs(entry["coords"].dec.dms[2])))
+    print(ra,dec)
+
     parameters = {
     "description":"Depot de scene pour CADOR",
     "versionmsg":"",
-    "login":"",
-    "passwd":"",  
-    "type":"",  
-    "sname": prefix + "_" + str(entry["index"]) + "_" + str(entry["index"]) + "_",  
-    "ra":"",  
-    "decl":"",  
-    "altmin":"",  
-    "moonmin":"",  
+    "login":"alert",
+    "passwd":pwd,  
+    "type":"IM",  
+    "sname": prefix + str(entry["idtelescope"]) + "_" + str(entry["index"]) + "_" + str(entry["tindex"]) + "_",  
+    "ra":ra,  
+    "decl":dec,  
+    "altmin":"10",  
+    "moonmin":"10",  
     "t1":exps[0],  
     "t2":exps[1],  
     "t3":exps[2],  
@@ -117,12 +131,15 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,date,ddate)
     "ddec6":"0",
     "spriority":"0",  
     "idtelescope":entry["idtelescope"], 
-    "processing":"",
-    "date":"",
-    "ddate":"0" }
+    "processing":processing,
+    "date":entry["time"].isot,
+    "ddate":ddate }
+    #Creating an xml root
     depot = etree.Element("depotcador")
+    #Inserting the xml elements
     for element in parameters.keys():
-        etree.SubElement(depot, element).text = parameters[element]
+        etree.SubElement(depot, element).text = str(parameters[element])
+    #Converting to a string
     stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
     print(stringform)
     return stringform
@@ -571,9 +588,8 @@ def site_timings(site):
             settime = 30     
             readoutTime = 10
             exptime = 120
-            nexp = 2
             exps = [exptime,exptime,0,0,0,0]
-            fil = "C"
+            fil = "1"
             filters = [fil,fil,fil,fil,fil,fil]
             return settime,readoutTime,exps,filters
             break
@@ -581,9 +597,8 @@ def site_timings(site):
             settime = 30     
             readoutTime = 10
             exptime = 120
-            nexp = 2
             exps = [exptime,exptime,0,0,0,0]
-            fil = "C"
+            fil = "1"
             filters = [fil,fil,fil,fil,fil,fil]
             return settime,readoutTime,exps,filters
             break
@@ -591,9 +606,8 @@ def site_timings(site):
             settime = 30     
             readoutTime = 10
             exptime = 120
-            nexp = 3
             exps = [exptime,exptime,exptime,0,0,0]
-            fil = "C"
+            fil = "0"
             filters = [fil,fil,fil,fil,fil,fil]
             return settime,readoutTime,exps,filters
             break
@@ -601,37 +615,48 @@ def site_timings(site):
             settime = 90     
             readoutTime = 10
             exptime = 120
-            nexp = 2
             exps = [exptime,exptime,0,0,0,0]
-            fil = "C"
+            fil = "1"
             filters = [fil,fil,fil,fil,fil,fil]
             return settime,readoutTime,exps,filters
             break
 
-def process_global(url,pwd):
+def process_global(url,pwd,dbpwd):
     start_time = Time(datetime.utcnow(), scale='utc')
-    sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
+    sitenames = ["'Tarot_Calern'"]#,"'Tarot_Chili'","'Tarot_Reunion'"
     scenes = Table()
     print("retrieving skymap from %s"% url); sys.stdout.flush()
     download_skymap(url)
     name = os.path.basename(url)
+    alertname = url.split("/")[5]
     print("loading skymap named %s"% name); sys.stdout.flush()
     hpx, header = load_skymap(name)
     for site in sitenames:
         sitescenes = Table()
-        fields,mylocation,sitescenes = main(hpx, header, site, pwd)
+        fields,mylocation,sitescenes = main(hpx, header, site, pwd,dbpwd)
         scenes = astropy.table.vstack([scenes,sitescenes])
     print (scenes)
+    
+    
+
+    
+    settime,readoutTime,exps,filters = site_timings(site)
+    idreq = post_request(alertname + "autogen","0","0",pwd)
+    for index in np.arange(0,len(scenes),1):
+        #post_scene(prefix,idreq,entry,exps,filters,pwd):
+        post_scene(alertname+"_",idreq,scenes[index],exps,filters,pwd)
+    
     end_time = Time(datetime.utcnow(), scale='utc')
     length = end_time - start_time
     print ("Executed in ",length.sec)
+    
     
     return scenes
         
 
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
-def main(hpx,header,site,pwd):
+def main(hpx,header,site,pwd,dbpwd):
     current_time = Time(datetime.utcnow(), scale='utc')
     print("Date is");print(current_time.value)
 
@@ -640,7 +665,7 @@ def main(hpx,header,site,pwd):
     #site = "'Tarot_Reunion'"
     nfields = site_number(site)
     print ("working on site: %s"% (site)); sys.stdout.flush()
-    location, horizondef, horizontype, hadeclims, idtelescope = get_obs_info(site,pwd)
+    location, horizondef, horizontype, hadeclims, idtelescope = get_obs_info(site,dbpwd)
     total, a,b,c = optimize_quin(hpx, nfields, site_field(site))
     myfields = build_fields(hpx, a, b, c, nfields*2, site_field(site))
     print (myfields); sys.stdout.flush()
@@ -694,9 +719,10 @@ def main(hpx,header,site,pwd):
     revscenes = np.transpose(scenes)
     thescenes = Table()
     thescenes["index"]=revscenes[0]
-    thescenes["tindex"]=revscenes[1]
-    thescenes["time"]=revscenes[2]
-    thescenes["coords"]=revscenes[3]
+    thescenes["index"]=revscenes[1]
+    thescenes["tindex"]=revscenes[2]
+    thescenes["time"]=revscenes[3]
+    thescenes["coords"]=revscenes[4]
     thescenes["idtelescope"] = idtelescope
 
     return thefields,location,thescenes
