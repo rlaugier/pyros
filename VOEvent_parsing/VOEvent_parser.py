@@ -70,7 +70,7 @@ def post_request(rname,strat,priority,pwd):
     </depotcador>'''
     strat = "0"
     priority = "0"
-    depotstring = build_request2(rname,strat,priority,pwd)
+    depotstring = build_request(rname,strat,priority,pwd)
     files = {'file': ('marequete.xml', depotstring)}
     ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/", files=files)
     depot = etree.XML(ans.content)
@@ -120,7 +120,7 @@ def post_scene(idreq,entry,exsps,spriority,idtelescope,processing,date,ddate):
     "ddate" 
     ]
     values = [
-    <description>Depot de scene pour CADOR</description>  
+    "Depot de scene pour CADOR" 
     "0.1",  
     "monlogin", 
     "monpassword",
@@ -157,20 +157,27 @@ def post_scene(idreq,entry,exsps,spriority,idtelescope,processing,date,ddate):
     "0", 
     "0",
     "0", 
-    "0</date>  
-    "0</ddate>  
+    "0", 
+    "0"  
     ]
     
-def build_request2(rname,strat,priority,pwd):
-    elements = ["description","versionmsg","login","passwd","rname","strategy","rpriority"]
-    values = ["Depot de requete pour CADOR","req0.1","alert","monpassword","toto10","0","0"]
-    values[3] = pwd
-    values[4] = rname
-    values[5] = strat
-    values[6] = priority
+def build_request(rname,strat,priority,pwd):
+    parameters = {"description":"Depot de requete pour CADOR",
+                  "versionmsg": "req0.1",
+                  "rname":      "rname",
+                  "login":      "alert",
+                  "passwd":     "monpassword",
+                  "strategy":   "0",
+                  "rpriority":  "0"}
+    parameters["passwd"] = pwd
+    parameters["rname"] = rname
+    parameters["strategy"] = strat
+    parameters["priority"] = priority
     depot = etree.Element("depotcador")
-    for index in np.arange(0,len(elements),1):
-        etree.SubElement(depot, elements[index]).text = values[index]
+    parameters
+    for element in parameters.keys():
+        etree.SubElement(depot, element).text = parameters[element]
+
     
     print(etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8"))
     stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
