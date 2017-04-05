@@ -551,6 +551,18 @@ def checkhadec(coordinates, time, mylocation, hadeclims):
         return observable
     
     return observable
+def check_declination(latitude,declination):
+
+    observable = 1
+    if latitude > 0:
+        if declination <  (latitude - 90*u.deg):
+            observable = 0
+            print("field rejected for declination too low",declination)
+    elif latitude < 0:
+        if declination > latitude + 90*u.deg:
+            observable = 0
+            print("field rejected for declination too low",declination)
+    return observable
 
 
 
@@ -623,7 +635,7 @@ def site_timings(site):
 
 def process_global(url,pwd,dbpwd):
     start_time = Time(datetime.utcnow(), scale='utc')
-    sitenames = ["'Tarot_Calern'"]#,"'Tarot_Chili'","'Tarot_Reunion'"
+    sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
     scenes = Table()
     print("retrieving skymap from %s"% url); sys.stdout.flush()
     download_skymap(url)
@@ -673,6 +685,11 @@ def main(hpx,header,site,pwd,dbpwd):
     print (thefields); sys.stdout.flush()
     print(thefields["coords"][0])
     print ("Observavility from %s, at location %s" % (site, location))
+    toremove = []
+    for index in np.arange(0,len(thefields),1):
+        if check_declination(location.latitude,thefields[index]["coords"].dec) == 0:
+            toremove.append(index)
+    thefields.remove_rows(toremove)
     mycyclegrid,scenelength = build_cyclegrid(15,site,24)
     #Determining observability to remove excess fields
     fieldobservability = []
