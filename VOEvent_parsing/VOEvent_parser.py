@@ -77,89 +77,55 @@ def post_request(rname,strat,priority,pwd):
     idreq = getxmlval(depot,"idreq")[0]
     print("Successfuly added request:",idreq)
     return idreq
-def post_scene(idreq,entry,exsps,spriority,idtelescope,processing,date,ddate):
-    emlements= [
-    "description",
-    "versionmsg",
-    "login",
-    "passwd",  
-    "type",  
-    "sname",  
-    "ra",  
-    "decl",  
-    "altmin",  
-    "moonmin",  
-    "t1",  
-    "t2",  
-    "t3",  
-    "t4",  
-    "t5",  
-    "t6",  
-    "f1",  
-    "f2",  
-    "f3",  
-    "f4",  
-    "f5",  
-    "f6",  
-    "dra1", 
-    "dra2",  
-    "dra3",  
-    "dra4",  
-    "dra5",  
-    "dra6", 
-    "ddec1",
-    "ddec2",
-    "ddec3",
-    "ddec4",
-    "ddec5",
-    "ddec6",
-    "spriority",  
-    "idtelescope", 
-    "processing",
-    "date>0",
-    "ddate" 
-    ]
-    values = [
-    "Depot de scene pour CADOR" 
-    "0.1",  
-    "monlogin", 
-    "monpassword",
-    "IM",
-    "Small Magelanic Cloud",
-    "+00:52:42",
-    "-72:49:00",
-    "90", 
-    "50",
-    "10",
-    "0",
-    "0",
-    "0",
-    "0",
-    "0",
-    "NoFilter",
-    "NoFilter", 
-    "NoFilter",
-    "NoFilter",
-    "NoFilter",
-    "NoFilter",
-    "0.00418098",
-    "0.00418098", 
-    "0.00418098", 
-    "0.00418098",
-    "0.00418098", 
-    "0.00418098",
-    "0",
-    "0", 
-    "0", 
-    "0", 
-    "0", 
-    "0", 
-    "0", 
-    "0",
-    "0", 
-    "0", 
-    "0"  
-    ]
+    
+def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,date,ddate):
+    
+    parameters = {
+    "description":"Depot de scene pour CADOR",
+    "versionmsg":"",
+    "login":"",
+    "passwd":"",  
+    "type":"",  
+    "sname": prefix + "_" + str(entry["index"]) + "_" + str(entry["index"]) + "_",  
+    "ra":"",  
+    "decl":"",  
+    "altmin":"",  
+    "moonmin":"",  
+    "t1":exps[0],  
+    "t2":exps[1],  
+    "t3":exps[2],  
+    "t4":exps[3],  
+    "t5":exps[4],  
+    "t6":exps[0],  
+    "f1":filters[0],  
+    "f2":filters[1],  
+    "f3":filters[2],  
+    "f4":filters[3],  
+    "f5":filters[4],  
+    "f6":filters[5],  
+    "dra1":"0.00418098", 
+    "dra2":"0.00418098",  
+    "dra3":"0.00418098",  
+    "dra4":"0.00418098",  
+    "dra5":"0.00418098",  
+    "dra6":"0.00418098", 
+    "ddec1":"0",
+    "ddec2":"0",
+    "ddec3":"0",
+    "ddec4":"0",
+    "ddec5":"0",
+    "ddec6":"0",
+    "spriority":"0",  
+    "idtelescope":entry["idtelescope"], 
+    "processing":"",
+    "date":"",
+    "ddate":"0" }
+    depot = etree.Element("depotcador")
+    for element in parameters.keys():
+        etree.SubElement(depot, element).text = parameters[element]
+    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
+    print(stringform)
+    return stringform
     
 def build_request(rname,strat,priority,pwd):
     parameters = {"description":"Depot de requete pour CADOR",
@@ -450,8 +416,7 @@ def process_gcn(payload, root):
     skymap, header = get_skymap(root)
 
 '''conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')'''
-'''idtelescope, latitude, longitude, sens, altitude, horizondef = get_obs_info("'Tarot_Calern'")'''
-'''latitude, longitude, altitude, horizondef, horizontype, a = get_obs_info("'Zadko_Australia'")'''
+
 
 def get_db_info(connection, table, entry, keycolumn, keyvalue):
     error = 0
@@ -607,28 +572,40 @@ def site_timings(site):
             readoutTime = 10
             exptime = 120
             nexp = 2
-            return settime,readoutTime,exptime,nexp
+            exps = [exptime,exptime,0,0,0,0]
+            fil = "C"
+            filters = [fil,fil,fil,fil,fil,fil]
+            return settime,readoutTime,exps,filters
             break
         if case("'Tarot_Chili'"):
             settime = 30     
             readoutTime = 10
             exptime = 120
             nexp = 2
-            return settime,readoutTime,exptime,nexp
+            exps = [exptime,exptime,0,0,0,0]
+            fil = "C"
+            filters = [fil,fil,fil,fil,fil,fil]
+            return settime,readoutTime,exps,filters
             break
         if case("'Tarot_Reunion'"):
             settime = 30     
             readoutTime = 10
             exptime = 120
             nexp = 3
-            return settime,readoutTime,exptime,nexp
+            exps = [exptime,exptime,exptime,0,0,0]
+            fil = "C"
+            filters = [fil,fil,fil,fil,fil,fil]
+            return settime,readoutTime,exps,filters
             break
         if case("'Zadko_Australia'"):
             settime = 90     
             readoutTime = 10
             exptime = 120
             nexp = 2
-            return settime,readoutTime,exptime,nexp
+            exps = [exptime,exptime,0,0,0,0]
+            fil = "C"
+            filters = [fil,fil,fil,fil,fil,fil]
+            return settime,readoutTime,exps,filters
             break
 
 def process_global(url,pwd):
@@ -663,7 +640,7 @@ def main(hpx,header,site,pwd):
     #site = "'Tarot_Reunion'"
     nfields = site_number(site)
     print ("working on site: %s"% (site)); sys.stdout.flush()
-    location, horizondef, horizontype, hadeclims = get_obs_info(site,pwd)
+    location, horizondef, horizontype, hadeclims, idtelescope = get_obs_info(site,pwd)
     total, a,b,c = optimize_quin(hpx, nfields, site_field(site))
     myfields = build_fields(hpx, a, b, c, nfields*2, site_field(site))
     print (myfields); sys.stdout.flush()
@@ -720,6 +697,7 @@ def main(hpx,header,site,pwd):
     thescenes["tindex"]=revscenes[1]
     thescenes["time"]=revscenes[2]
     thescenes["coords"]=revscenes[3]
+    thescenes["idtelescope"] = idtelescope
 
     return thefields,location,thescenes
     
@@ -756,12 +734,12 @@ def next_sunset(mylocation, mytime):
             night = 1
     return set_time
 def build_cyclegrid(number,site,period):
-    settime,readoutTime,exptime,nexp = site_timings(site)
+    settime,readoutTime,exps,filters = site_timings(site)
     timegrid = []
     
     #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime
-    totalexpscene = nexp * exptime
-    scenelength = totalexpscene + nexp * readoutTime 
+    totalexpscene = np.sum(exps)
+    scenelength = totalexpscene + np.count_nonzero(exps) * readoutTime 
     timeshift = scenelength + settime
     freetime = 0
     cycleTime = number * timeshift + freetime
@@ -773,12 +751,12 @@ def build_cyclegrid(number,site,period):
     timetable["date"]=timegrid
     return timetable,scenelength
 def build_finegrid(number,site):
-    settime,readoutTime,exptime,nexp = site_timings(site)
+    settime,readoutTime,exps,filters = site_timings(site)
     timegrid = []
     
     #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime
-    totalexpscene = nexp * exptime
-    scenelength = totalexpscene + nexp * readoutTime 
+    totalexpscene = np.sum(exps)
+    scenelength = totalexpscene + np.count_nonzero(exps) * readoutTime 
     timeshift = scenelength + settime
     freetime = 0
     cycleTime = number * timeshift + freetime
@@ -816,7 +794,7 @@ def convert_horizon(horizondef,horizontype):
 
     
 def get_obs_info(sitename,pwd):
-    conn = pymysql.connect(host='tarot9.obs-hp.fr', user='tarot', password=pwd, db='ros')
+    conn = pymysql.connect(host='203.56.23.43', user='ros', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
     error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)
@@ -841,5 +819,5 @@ def get_obs_info(sitename,pwd):
     myhorizon = convert_horizon(horizondef,horizontype)
     print(myhorizon)
     hadeclims = (limdecmin,limdecmax,limharise,limhaset)
-    return location, myhorizon, horizontype, hadeclims
+    return location, myhorizon, horizontype, hadeclims,idtelescope
     
