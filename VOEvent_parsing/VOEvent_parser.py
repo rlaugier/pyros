@@ -20,13 +20,16 @@ import healpy as hp
 import numpy as np
 from lxml import etree
 
+from datetime import datetime
 import astropy.coordinates
 from astropy.time import Time
-from datetime import datetime
 import astropy.units as u
 from astropy.table import Table
+from astropy.io import ascii
 
 import subprocess
+
+from time import sleep
 
 import pymysql
 import os
@@ -70,10 +73,10 @@ def post_scene(prefix,idreq,entry,exps,filters,pwd):
     ddate = "1"
     processing = "0"
     spriority = "0"
-    depotstring = build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd)
+    depotstring, ra, dec, timeisot = build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd)
     files = {'file': ('mascene.xml', depotstring)}
     ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/"+str(idreq), files=files)
-    print (ans.content)
+    #print (ans.content)
     depot = etree.XML(ans.content)
     try :
         idscene = getxmlval(depot,"idscene")[0]
@@ -81,9 +84,8 @@ def post_scene(prefix,idreq,entry,exps,filters,pwd):
         print("fail to parse response in xml")
         return
     print("Successfuly added scene:",idscene)
-    for element in depot.iter():
-        print(element.text)
-    return idreq
+
+    return idscene, ra, dec, timeisot
 def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     print()
     ra = str((int)(entry["coords"].ra.hms[0])) + ":" +\
@@ -92,7 +94,9 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     dec = str((int)(entry["coords"].dec.dms[0])) + ":" +\
         str((int)(abs(entry["coords"].dec.dms[1]))) + ":" +\
         str((int)(abs(entry["coords"].dec.dms[2])))
-    print(ra,dec)
+    timeisot = entry["time"].isot
+    print(ra,dec,timeisot)
+    
 
     parameters = {
     "description":"Depot de scene pour CADOR",
@@ -132,7 +136,7 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     "spriority":"0",  
     "idtelescope":entry["idtelescope"], 
     "processing":processing,
-    "date":entry["time"].isot,
+    "date":timeisot,
     "ddate":ddate }
     #Creating an xml root
     depot = etree.Element("depotcador")
@@ -141,8 +145,8 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
         etree.SubElement(depot, element).text = str(parameters[element])
     #Converting to a string
     stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
-    print(stringform)
-    return stringform
+    #print(stringform)
+    return stringform, ra ,dec, timeisot
     
 def build_request(rname,strat,priority,pwd):
     parameters = {"description":"Depot de requete pour CADOR",
@@ -165,6 +169,27 @@ def build_request(rname,strat,priority,pwd):
     print(etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8"))
     stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
     return stringform
+    
+def remove_request(idreq,pwd):
+    parameters = {"description":"Depot de requete pour CADOR",
+              "versionmsg": "req0.1",
+              "rname":      "rname",
+              "login":      "alert",
+              "passwd":     pwd
+              }
+    depot = etree.Element("depotcador")
+    for element in parameters.keys():
+        etree.SubElement(depot, element).text = parameters[element]
+    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
+    
+    files = {'file': ('identity_v01.xml', stringform)}
+    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/" + str(idreq) + "/del", files=files)
+    print (ans.content)
+    depot = etree.XML(ans.content)
+    deleted_requests = getxmlval(depot,"deleted_requests")[0]
+    deleted_scenes = getxmlval(depot,"deleted_scenes")[0]
+    print("Successfuly deleted requests and scenes:",deleted_requests,deleted_scenes)
+    return idreq
 
 def getxmlval(root,tag):
     vals=[]
@@ -172,9 +197,10 @@ def getxmlval(root,tag):
         vals.append(element.text)
     return vals
 
-def download_skymap(myurl):
+def download_skymap(myurl,alertname,name):
     #subprocess.check_call(['curl', '-O', '--netrc', myurl])
-    subprocess.check_call(['wget','--auth-no-challenge',myurl])
+    subprocess.check_call(['wget','--auth-no-challenge', myurl])
+    shutil.move(name,os.path.join(alertname,name))
 
 def load_skymap(myfile):
     hpx, header = hp.read_map(myfile, h=True, verbose=True)
@@ -555,11 +581,11 @@ def check_declination(latitude,declination):
 
     observable = 1
     if latitude > 0:
-        if declination <  (latitude - 90*u.deg):
+        if declination <  (latitude - 80*u.deg):
             observable = 0
             print("field rejected for declination too low",declination)
     elif latitude < 0:
-        if declination > latitude + 90*u.deg:
+        if declination > latitude + 80*u.deg:
             observable = 0
             print("field rejected for declination too low",declination)
     return observable
@@ -633,34 +659,79 @@ def site_timings(site):
             return settime,readoutTime,exps,filters
             break
 
-def process_global(url,pwd,dbpwd):
+def process_global(url,pwd,dbpwd,test=False):
     start_time = Time(datetime.utcnow(), scale='utc')
     sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
+    siteids = [1,2,8]
     scenes = Table()
-    print("retrieving skymap from %s"% url); sys.stdout.flush()
-    download_skymap(url)
     name = os.path.basename(url)
     alertname = url.split("/")[5]
+    if not os.path.isdir(alertname):
+        os.makedirs(alertname)
+    print("retrieving skymap from %s"% url); sys.stdout.flush()
+    download_skymap(url, alertname, name)
+
+    
     print("loading skymap named %s"% name); sys.stdout.flush()
-    hpx, header = load_skymap(name)
+    hpx, header = load_skymap(os.path.join(alertname,name))
     for site in sitenames:
         sitescenes = Table()
         fields,mylocation,sitescenes = main(hpx, header, site, pwd,dbpwd)
-        scenes = astropy.table.vstack([scenes,sitescenes])
+        #this fixes problems arising when a table was empty
+        if len(sitescenes)>0 and type(sitescenes) == astropy.table.table.Table:
+            if len(scenes)>0:
+                print ("joining")
+                scenes.pprint(max_width=-1)
+                sitescenes.pprint(max_width=-1)
+                scenes = astropy.table.vstack([scenes,sitescenes])
+            else :
+                scenes = sitescenes
     print (scenes)
     
     
 
     
     settime,readoutTime,exps,filters = site_timings(site)
-    idreq = post_request(alertname + "autogen","0","0",pwd)
+    idreq = post_request(alertname + "autogen","0","90",pwd)
+    idscene = []
+    ra = []
+    dec = []
+    timeisot = []
     for index in np.arange(0,len(scenes),1):
         #post_scene(prefix,idreq,entry,exps,filters,pwd):
-        post_scene(alertname+"_",idreq,scenes[index],exps,filters,pwd)
-    
+        myidscene, myra, mydec, mytimeisot = post_scene(alertname+"_",idreq,scenes[index],exps,filters,pwd)
+        idscene.append(myidscene)
+        ra.append(myra)
+        dec.append(mydec)
+        timeisot.append(mytimeisot)
+    scenes ["idscene"] = idscene
+    scenes ["ra"] = ra
+    scenes ["dec"] = dec
+    scenes ["timeisot"] = timeisot
+        
     end_time = Time(datetime.utcnow(), scale='utc')
     length = end_time - start_time
-    print ("Executed in ",length.sec)
+    print ("Executed in ",length.sec,"seconds")
+    print ("Waiting for planification (10s)")
+    sys.stdout.flush()
+    sleep(10)
+    
+    #Downloading planification logs
+    print("Keeping a little souvenir"); sys.stdout.flush()
+    for idteles in siteids:
+        planiurl = "http://cador.obs-hp.fr/ros/sequenced" + str(idteles) + ".txt"
+        rejecurl = "http://cador.obs-hp.fr/ros/rejected" + str(idteles) + ".txt"
+        try :
+            download_skymap(planiurl,alertname,"sequenced"+str(idteles)+".txt")
+            download_skymap(rejecurl,alertname,"rejected"+str(idteles)+".txt")
+            print ("Succesfully downloaded plani files")
+        except:
+            print ("error copying plani")
+    sys.stdout.flush()    
+    ascii.write(scenes, os.path.join(alertname,'Planification_table.csv'), format='csv', fast_writer=False)
+    if test == True:
+        remove_request(idreq,pwd)
+
     
     
     return scenes
@@ -725,17 +796,16 @@ def main(hpx,header,site,pwd,dbpwd):
         obsevability = []
         timeindex = 0
         for j in np.arange(0,len(mycyclegrid),1):
-            exacttime = mycyclegrid["date"][j]*u.second+i*scenelength*u.second + current_time
+            exacttime = mycyclegrid["date"][j]*u.second + i*scenelength*u.second + current_time
             result = is_observable(thefields["coords"][i],exacttime,location,horizondef,horizontype,hadeclims)
             if result == 1:
                 scenes.append([site,thefields["index"][i],timeindex,exacttime,thefields["coords"][i]])
                 timeindex += 1
         
         fieldobservability.append(obsevability)
-    print (scenes)
     revscenes = np.transpose(scenes)
     thescenes = Table()
-    thescenes["index"]=revscenes[0]
+    thescenes["site"]=revscenes[0]
     thescenes["index"]=revscenes[1]
     thescenes["tindex"]=revscenes[2]
     thescenes["time"]=revscenes[3]
@@ -751,7 +821,7 @@ def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
     moonok = checkmoon(coords, time, location)
     elevok = checkelev(coords, time, location, horizondef,horizontype)
     hadecok = checkhadec(coords, time, location, hadeclims)
-    print (sunok, moonok, elevok,hadecok)
+    #print (sunok, moonok, elevok,hadecok)
     observable = sunok * moonok * elevok * hadecok
     return observable
     
@@ -837,7 +907,7 @@ def convert_horizon(horizondef,horizontype):
 
     
 def get_obs_info(sitename,pwd):
-    conn = pymysql.connect(host='203.56.23.43', user='ros', password=pwd, db='ros')
+    conn = pymysql.connect(host='tarot9.oca.eu', user='ros', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
     error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)
