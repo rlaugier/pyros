@@ -660,6 +660,10 @@ def site_timings(site):
             break
 
 def process_global(url,pwd,dbpwd,test=False):
+    if test == True:
+        print ("Ok, let's go through the drill one more time")
+    else :
+        print ("Ok this is for real now! This is not an exercise!")
     start_time = Time(datetime.utcnow(), scale='utc')
     sitenames = ["'Tarot_Calern'","'Tarot_Chili'","'Tarot_Reunion'"]
     siteids = [1,2,8]
@@ -730,7 +734,23 @@ def process_global(url,pwd,dbpwd,test=False):
     sys.stdout.flush()    
     ascii.write(scenes, os.path.join(alertname,'Planification_table.csv'), format='csv', fast_writer=False)
     if test == True:
+        print ("This was just an exercise, let's delete the request now")
         remove_request(idreq,pwd)
+    else :
+        print ("This was for real: the scenes will be observed")
+        for i in np.arange(0,900,10):
+            if replica_is_running():
+                print("Waiting until replica has finished")
+                sleep (10)
+            else:
+                print("Lauching replica to propagate planification")
+                #subprocess.check_call("nohup", "php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php", "1>", "/srv/www/htdocs/ros/logs/replica/replica_slow.txt")
+                try:
+                    subprocess.check_call("php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php")
+                    print("Replica finished successfuly, we are done, here")
+                except:
+                    print("Replica crashed")
+                break
 
     
     
@@ -813,7 +833,13 @@ def main(hpx,header,site,pwd,dbpwd):
     thescenes["idtelescope"] = idtelescope
 
     return thefields,location,thescenes
-    
+
+def replica_is_running():
+    ps_replica = subprocess.check_output(["ps","-edf"])
+    if ps_replica.count("replica") > 0:
+        return True
+    else:
+        return False
     
 def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
     sunok = checksun(coords, time, location)
@@ -825,7 +851,7 @@ def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
     observable = sunok * moonok * elevok * hadecok
     return observable
     
-    
+
 def next_sunset(mylocation, mytime):
     astropy.coordinates.solar_system_ephemeris.set('builtin')
     SunObject = astropy.coordinates.get_sun(mytime)
