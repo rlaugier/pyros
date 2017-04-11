@@ -103,7 +103,7 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     "versionmsg":"",
     "login":"alert",
     "passwd":pwd,  
-    "type":"IM",  
+    "type":"AL",  
     "sname": prefix + str(entry["idtelescope"]) + "_" + str(entry["index"]) + "_" + str(entry["tindex"]) + "_",  
     "ra":ra,  
     "decl":dec,  
@@ -749,7 +749,7 @@ def process_global(url,pwd,dbpwd,test=False):
                     subprocess.check_call("php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php")
                     print("Replica finished successfuly, we are done, here")
                 except:
-                    print("Replica crashed")
+                    print("Replica was probably crashed: waited for %i and got no response"% i)
                 break
 
     
@@ -933,7 +933,7 @@ def convert_horizon(horizondef,horizontype):
 
     
 def get_obs_info(sitename,pwd):
-    conn = pymysql.connect(host='tarot9.oca.eu', user='ros', password=pwd, db='ros')
+    conn = pymysql.connect(host='cador.obs-hp.fr', user='ros', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
     error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)
