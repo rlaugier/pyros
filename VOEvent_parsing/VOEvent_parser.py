@@ -446,7 +446,6 @@ def process_gcn(payload, root):
     # VERY IMPORTANT! Replce with the following line of code
     # to respond to only real 'observation' events.
     # if root.attrib['role'] != 'observation': return
-    if root.attrib['role'] != 'test': return
     if root.attrib['role'] == 'test' :
         skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
         process_global(skymap_url,userpassword,databasepassword,test=True)
