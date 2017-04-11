@@ -447,6 +447,13 @@ def process_gcn(payload, root):
     # to respond to only real 'observation' events.
     # if root.attrib['role'] != 'observation': return
     if root.attrib['role'] != 'test': return
+    if root.attrib['role'] == 'test' :
+        skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
+        process_global(skymap_url,userpassword,databasepassword,test=True)
+    if root.attrib['role'] == 'observation' :
+        skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
+        process_global(skymap_url,userpassword,databasepassword,test=False)
+
 
     # Respond only to 'CBC' events. Change 'CBC' to "Burst' to respond to only
     # unmodeled burst events.
@@ -959,4 +966,15 @@ def get_obs_info(sitename,pwd):
     print(myhorizon)
     hadeclims = (limdecmin,limdecmax,limharise,limhaset)
     return location, myhorizon, horizontype, hadeclims,idtelescope
-    
+print ("Parsing user password")
+try : 
+    userpassword = str(sys.argv[1])
+except:
+    print("error: expected the password for user alert inbetween \"s like \"****\" ")
+print ("Parsing database password")
+try: 
+    databasepassword = str(sys.argv[2])
+except:
+    print("error: expected the database password for user ros inbetween \"s like \"****\" ")
+print ("the program is now ready: listening to for events")
+gcn.listen(port=8096, handler=process_gcn)
