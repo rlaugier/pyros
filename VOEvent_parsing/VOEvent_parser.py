@@ -69,7 +69,7 @@ except:
     print("error: expected the database password for user ros inbetween \"s like \"****\" ")
 print ("initiating test counter")
 testcounter = 0
-testcycle = 10
+testcycle = 100
 try:
     runmode = str(sys.argv[3])
     print("mode",runmode)
@@ -778,19 +778,21 @@ def process_global(url,pwd,dbpwd,test=False):
         remove_request(idreq,pwd)
     else :
         print ("This was for real: the scenes will be observed")
-        for i in np.arange(0,900,10):
-            if replica_is_running():
-                print("Waiting until replica has finished")
-                sleep (10)
-            else:
-                print("Lauching replica to propagate planification")
-                #subprocess.check_call("nohup", "php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php", "1>", "/srv/www/htdocs/ros/logs/replica/replica_slow.txt")
-                try:
-                    subprocess.check_call("php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php")
-                    print("Replica finished successfuly, we are done, here")
-                except:
-                    print("Replica was probably crashed: waited for %i and got no response"% i)
-                break
+#        for i in np.arange(0,900,10):
+#            if replica_is_running():
+#                print("Waiting until replica has finished")
+#                sleep (10)
+#            else:
+#                print("Lauching replica to propagate planification")
+#                #subprocess.check_call("nohup", "php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php", "1>", "/srv/www/htdocs/ros/logs/replica/replica_slow.txt")
+#                try:
+#                    subprocess.check_call("php", "/srv/develop/ros_private_cador/src/replica2/replica_slow.php")
+#                    print("Replica finished successfuly, we are done, here")
+#                except:
+#                    print("Replica was probably crashed: waited for %i and got no response"% i)
+#                break
+        print("Unfortunately, we cannot run replica from vega yet. We have to be patient and wait for it to run on schedule")
+        
 
     
     
