@@ -56,7 +56,27 @@ class switch(object):
         else:
             return False
             
+#parsing for global variables
+print ("Parsing user password")
+try : 
+    userpassword = str(sys.argv[1])
+except:
+    print("error: expected the password for user alert inbetween \"s like \"****\" ")
+print ("Parsing database password")
+try: 
+    databasepassword = str(sys.argv[2])
+except:
+    print("error: expected the database password for user ros inbetween \"s like \"****\" ")
+print ("initiating test counter")
+testcounter = 0
+testcycle = 10
+try:
+    runmode = str(sys.argv[3])
+    print("mode",runmode)
+except:
+    runmode = "run"
             
+#Defining the functions for the core
 def post_request(rname,strat,priority,pwd):
     strat = "0"
     priority = "0"
@@ -448,6 +468,8 @@ def process_gcn(payload, root):
     
     #This is the test sequence procedure, we run global in test mode once every x time (defined by testcycle)
     if root.attrib['role'] == 'test' :
+        print("This is a test: checking testcounter"); sys.stdout.flush()
+        print(testcounter); sys.stdout.flush()
         if testcounter == 0:
             print("We run the test this time")
             skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
@@ -977,23 +999,6 @@ def get_obs_info(sitename,pwd):
     return location, myhorizon, horizontype, hadeclims,idtelescope
     
 
-print ("Parsing user password")
-try : 
-    userpassword = str(sys.argv[1])
-except:
-    print("error: expected the password for user alert inbetween \"s like \"****\" ")
-print ("Parsing database password")
-try: 
-    databasepassword = str(sys.argv[2])
-except:
-    print("error: expected the database password for user ros inbetween \"s like \"****\" ")
-print ("initiating test counter")
-testcounter = 0
-testcycle = 10
-try:
-    runmode = str(sys.argv[3])
-except:
-    runmode = "run"
 if runmode == "run":
     print ("the program is now ready: listening for events")
     sys.stdout.flush()
