@@ -435,8 +435,7 @@ def get_skymap(root):
 # Function to call every time a GCN is received.
 # Run only for notices of type LVC_INITIAL or LVC_UPDATE.
 @gcn.handlers.include_notice_types(
-    gcn.notice_types.LVC_INITIAL,
-    gcn.notice_types.LVC_UPDATE)
+    gcn.notice_types.LVC_INITIAL)
 def process_gcn(payload, root):
     # Print the alert
     print('Got VOEvent:')
@@ -446,9 +445,20 @@ def process_gcn(payload, root):
     # VERY IMPORTANT! Replce with the following line of code
     # to respond to only real 'observation' events.
     # if root.attrib['role'] != 'observation': return
+    
+    #This is the test sequence procedure, we run global in test mode once every x time (defined by testcycle)
     if root.attrib['role'] == 'test' :
-        skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
-        process_global(skymap_url,userpassword,databasepassword,test=True)
+        if testcounter == 0:
+            print("We run the test this time")
+            skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
+            process_global(skymap_url,userpassword,databasepassword,test=True)
+        else :
+            print ("The test counter is at %i: not doing the drill this time.")
+        testcounter += 1
+        if testcounter >= testcycle:
+            testcounter=0
+    
+    #This is what happens if the alert is NOT A TEST: we run global in non-test mode
     if root.attrib['role'] == 'observation' :
         skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
         process_global(skymap_url,userpassword,databasepassword,test=False)
@@ -965,6 +975,8 @@ def get_obs_info(sitename,pwd):
     print(myhorizon)
     hadeclims = (limdecmin,limdecmax,limharise,limhaset)
     return location, myhorizon, horizontype, hadeclims,idtelescope
+    
+
 print ("Parsing user password")
 try : 
     userpassword = str(sys.argv[1])
@@ -975,5 +987,16 @@ try:
     databasepassword = str(sys.argv[2])
 except:
     print("error: expected the database password for user ros inbetween \"s like \"****\" ")
-print ("the program is now ready: listening to for events")
-gcn.listen(port=8096, handler=process_gcn)
+print ("initiating test counter")
+testcounter = 0
+testcycle = 10
+try:
+    runmode = str(sys.argv[3])
+except:
+    runmode = "run"
+if runmode == "run":
+    print ("the program is now ready: listening for events")
+    sys.stdout.flush()
+    gcn.listen(port=8096, handler=process_gcn)
+elif runmode =="tools":
+    print ("The tools are loaded, ready for interactive mode (use ipython)")
