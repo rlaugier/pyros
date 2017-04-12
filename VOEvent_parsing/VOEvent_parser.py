@@ -457,6 +457,8 @@ def get_skymap(root):
 @gcn.handlers.include_notice_types(
     gcn.notice_types.LVC_INITIAL)
 def process_gcn(payload, root):
+    global testcounter
+    
     # Print the alert
     print('Got VOEvent:')
     print(payload)
