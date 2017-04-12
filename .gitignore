@@ -56,3 +56,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+#Logs and VOEvent
+*.log
+voevent_*.xml
+*.out
