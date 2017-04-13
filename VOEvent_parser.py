@@ -18,7 +18,6 @@ import gcn.notice_types
 import requests
 import healpy as hp
 import numpy as np
-from lxml import etree
 
 from datetime import datetime
 import astropy.coordinates
@@ -31,30 +30,15 @@ import subprocess
 
 from time import sleep
 
-import pymysql
 import os
 
 
+#internal pyros imports
+import pyros-utilities
+import cador-rest
 
-class switch(object):
-    def __init__(self, value):
-        self.value = value
-        self.fall = False
 
-    def __iter__(self):
-        """Return the match method once, then stop"""
-        yield self.match
-        raise StopIteration
-    
-    def match(self, *args):
-        """Indicate whether or not to enter a case suite"""
-        if self.fall or not args:
-            return True
-        elif self.value in args: # changed for v1.5, see below
-            self.fall = True
-            return True
-        else:
-            return False
+
             
 #parsing for global variables
 print ("Parsing user password")
@@ -77,150 +61,6 @@ except:
     runmode = "run"
             
 #Defining the functions for the core
-def post_request(rname,strat,priority,pwd):
-    '''Builds and posts a request on CADOR for the user alert. This just creates the request
-    for the new scenes to be posted to. Returns the idreq of the new request'''
-    strat = "0"
-    priority = "0"
-    depotstring = build_request(rname,strat,priority,pwd)
-    files = {'file': ('marequete.xml', depotstring)}
-    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/", files=files)
-    depot = etree.XML(ans.content)
-    idreq = getxmlval(depot,"idreq")[0]
-    print("Successfuly added request:",idreq)
-    return idreq
-    
-def post_scene(prefix,idreq,entry,exps,filters,pwd):
-    '''This turns the scene table line entry into a scene for CADOR
-    and posts it to the server'''
-    ddate = "1"
-    processing = "0"
-    spriority = "0"
-    depotstring, ra, dec, timeisot = build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd)
-    files = {'file': ('mascene.xml', depotstring)}
-    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/"+str(idreq), files=files)
-    #print (ans.content)
-    depot = etree.XML(ans.content)
-    try :
-        idscene = getxmlval(depot,"idscene")[0]
-    except:
-        print("fail to parse response in xml")
-        return
-    print("Successfuly added scene:",idscene)
-
-    return idscene, ra, dec, timeisot
-def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
-    '''Creates the XML string to submit a new scene to the CADOR REST API'''
-    print()
-    ra = str((int)(entry["coords"].ra.hms[0])) + ":" +\
-        str((int)(entry["coords"].ra.hms[1])) + ":" +\
-        str((int)(entry["coords"].ra.hms[2]))
-    dec = str((int)(entry["coords"].dec.dms[0])) + ":" +\
-        str((int)(abs(entry["coords"].dec.dms[1]))) + ":" +\
-        str((int)(abs(entry["coords"].dec.dms[2])))
-    timeisot = entry["time"].isot
-    print(ra,dec,timeisot)
-    parameters = {
-    "description":"Depot de scene pour CADOR",
-    "versionmsg":"",
-    "login":"alert",
-    "passwd":pwd,  
-    "type":"AL",  
-    "sname": prefix + str(entry["idtelescope"]) + "_" + str(entry["index"]) + "_" + str(entry["tindex"]) + "_",  
-    "ra":ra,  
-    "decl":dec,  
-    "altmin":"10",  
-    "moonmin":"10",  
-    "t1":exps[0],  
-    "t2":exps[1],  
-    "t3":exps[2],  
-    "t4":exps[3],  
-    "t5":exps[4],  
-    "t6":exps[0],  
-    "f1":filters[0],  
-    "f2":filters[1],  
-    "f3":filters[2],  
-    "f4":filters[3],  
-    "f5":filters[4],  
-    "f6":filters[5],  
-    "dra1":"0.00418098", 
-    "dra2":"0.00418098",  
-    "dra3":"0.00418098",  
-    "dra4":"0.00418098",  
-    "dra5":"0.00418098",  
-    "dra6":"0.00418098", 
-    "ddec1":"0",
-    "ddec2":"0",
-    "ddec3":"0",
-    "ddec4":"0",
-    "ddec5":"0",
-    "ddec6":"0",
-    "spriority":"0",  
-    "idtelescope":entry["idtelescope"], 
-    "processing":processing,
-    "date":timeisot,
-    "ddate":ddate }
-    #Creating an xml root
-    depot = etree.Element("depotcador")
-    #Inserting the xml elements
-    for element in parameters.keys():
-        etree.SubElement(depot, element).text = str(parameters[element])
-    #Converting to a string
-    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
-    #print(stringform)
-    return stringform, ra ,dec, timeisot
-    
-def build_request(rname,strat,priority,pwd):
-    '''Creates the XML REST string for a new request '''
-    parameters = {"description":"Depot de requete pour CADOR",
-                  "versionmsg": "req0.1",
-                  "rname":      "rname",
-                  "login":      "alert",
-                  "passwd":     "monpassword",
-                  "strategy":   "0",
-                  "rpriority":  "0"}
-    parameters["passwd"] = pwd
-    parameters["rname"] = rname
-    parameters["strategy"] = strat
-    parameters["priority"] = priority
-    depot = etree.Element("depotcador")
-    parameters
-    for element in parameters.keys():
-        etree.SubElement(depot, element).text = parameters[element]
-
-    
-    print(etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8"))
-    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
-    return stringform
-    
-def remove_request(idreq,pwd):
-    '''This will remove the request from CADOR and delete all the scenes'''
-    parameters = {"description":"Depot de requete pour CADOR",
-              "versionmsg": "req0.1",
-              "rname":      "rname",
-              "login":      "alert",
-              "passwd":     pwd
-              }
-    depot = etree.Element("depotcador")
-    for element in parameters.keys():
-        etree.SubElement(depot, element).text = parameters[element]
-    stringform = etree.tostring(depot,pretty_print= True,xml_declaration=True,encoding="UTF-8")
-    
-    files = {'file': ('identity_v01.xml', stringform)}
-    ans = requests.post("http://cador.obs-hp.fr/ros/manage/rest/cador.php/" + str(idreq) + "/del", files=files)
-    print (ans.content)
-    depot = etree.XML(ans.content)
-    deleted_requests = getxmlval(depot,"deleted_requests")[0]
-    deleted_scenes = getxmlval(depot,"deleted_scenes")[0]
-    print("Successfuly deleted requests and scenes:",deleted_requests,deleted_scenes)
-    return idreq
-
-def getxmlval(root,tag):
-    ''' a simple function to retrieve a value from an XML etree object'''
-    vals=[]
-    for element in root.iter(tag=tag):
-        vals.append(element.text)
-    return vals
 
 def download_skymap(myurl,alertname,name):
     '''This function actually downloads the file from an url then moves it to
@@ -297,23 +137,6 @@ def checkra(ra):
     else : print("error: need float type for checkra"); return;
     return ra
 
-def getcorners(ra,dec,field):
-    '''Just a convenient function that returns the corners of
-    a field of view from its center'''
-    demichamp = field/2
-    racorners = np.zeros(4)
-    deccorners = np.zeros(4)
-    racorners[0], deccorners[0] = ra + demichamp, dec - demichamp
-    racorners[1], deccorners[1] = ra + demichamp, dec + demichamp
-    racorners[2], deccorners[2] = ra - demichamp, dec + demichamp
-    racorners[3], deccorners[3] = ra - demichamp, dec - demichamp
-    return racorners, deccorners
-
-
-def frange(x, y, jump):
-    while x < y:
-        yield x
-        x += jump
 
 
 def slicesky(d0, s0,s1,field):
@@ -541,21 +364,6 @@ def process_gcn(payload, root):
 '''conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')'''
 
 
-def get_db_info(connection, table, entry, keycolumn, keyvalue):
-    '''This utilitarian function retrieves a bit of information from a distant table.
-    The connection must first be established with pymysql.connect(), then passed in a 1st argument'''
-    error = 0
-    query = ""
-    query = "SELECT " + entry + " FROM " + table + " WHERE " + keycolumn + "= " + keyvalue + ";"
-    mycursor = connection.cursor()
-    countrow = mycursor.execute(query)
-    if countrow != 1 :
-        error =1
-        print("error fetching data in database")
-        value = ""
-    value = mycursor.fetchone()[0]
-    return error, value
-    
 
 def interpolate(dataset, target,horizontype):
     '''This function is used to interpolate an horizon definition.
@@ -591,13 +399,7 @@ def interpolate(dataset, target,horizontype):
     return value
 def checkhorizon(horizondef,horizontype):
     return
-def transform_location(latitude, longitude, sens, altitude):
-    '''This function returns an astropy Earthlocation object based on ROS location values'''
-    if sens == 'E':
-        location = astropy.coordinates.EarthLocation(longitude*u.deg, latitude*u.deg, altitude*u.m)
-    elif sens == 'W':
-        location = astropy.coordinates.EarthLocation(-longitude*u.deg, latitude*u.deg, altitude*u.m)
-    return location
+
 def checksun(coordinates, time, mylocation):
     '''This function checks for the presence of night at the site(-5° of sun elevation)
     and an agular separation to the sun greater than 30°'''
@@ -683,79 +485,6 @@ def check_declination(latitude,declination):
             observable = 0
             print("field rejected for declination too low",declination)
     return observable
-
-
-
-def site_field(site):
-    '''This is a crude definition of each site's FoV'''
-    for case in switch(site):
-        if case("'Tarot_Calern'"):
-            return 1.86
-            break
-        if case("'Tarot_Chili'"):
-            return 1.86
-            break
-        if case("'Tarot_Reunion'"):
-            return 4.2
-            break
-        if case("'Zadko_Australia'"):
-            return 0.5
-            break
-def site_number(site):
-    '''This is a crude definition of each site's targeted number of fields'''
-    for case in switch(site):
-        if case("'Tarot_Calern'"):
-            return 5
-            break
-        if case("'Tarot_Chili'"):
-            return 5
-            break
-        if case("'Tarot_Reunion'"):
-            return 10
-            break
-        if case("'Zadko_Australia'"):
-            return 5
-            break
-def site_timings(site):
-    '''This is a crude definition of each site's timing parameters
-    as well as exposure scheme'''
-    for case in switch(site):
-        if case("'Tarot_Calern'"):
-            settime = 30     
-            readoutTime = 10
-            exptime = 120
-            exps = [exptime,exptime,0,0,0,0]
-            fil = "1"
-            filters = [fil,fil,fil,fil,fil,fil]
-            return settime,readoutTime,exps,filters
-            break
-        if case("'Tarot_Chili'"):
-            settime = 30     
-            readoutTime = 10
-            exptime = 120
-            exps = [exptime,exptime,0,0,0,0]
-            fil = "1"
-            filters = [fil,fil,fil,fil,fil,fil]
-            return settime,readoutTime,exps,filters
-            break
-        if case("'Tarot_Reunion'"):
-            settime = 30     
-            readoutTime = 10
-            exptime = 120
-            exps = [exptime,exptime,exptime,0,0,0]
-            fil = "0"
-            filters = [fil,fil,fil,fil,fil,fil]
-            return settime,readoutTime,exps,filters
-            break
-        if case("'Zadko_Australia'"):
-            settime = 90     
-            readoutTime = 10
-            exptime = 120
-            exps = [exptime,exptime,0,0,0,0]
-            fil = "1"
-            filters = [fil,fil,fil,fil,fil,fil]
-            return settime,readoutTime,exps,filters
-            break
 
 def process_global(url,pwd,dbpwd,test=False):
     '''This function is designed to do all the steps required for the scheduling of
@@ -939,15 +668,6 @@ def main(hpx,header,site,pwd,dbpwd):
     thescenes["idtelescope"] = idtelescope
 
     return thefields,location,thescenes
-
-def replica_is_running():
-    '''This simple function checks if replica is running on this machine
-    It is useless unless replica runs locally'''
-    ps_replica = subprocess.check_output(["ps","-edf"])
-    if ps_replica.count("replica") > 0:
-        return True
-    else:
-        return False
     
 def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
     '''Thid function regroups all observability check into one'''
@@ -1033,52 +753,6 @@ def clean_table(fields):
     del fields["prob"]
     del fields["dec"]
     return fields
-    
-def convert_horizon(horizondef,horizontype):
-    '''This converts the string of ROS's horizondef into a suitable table of values'''
-    lims = horizondef.split("} {")
-    lims[0] = lims[0].replace("{","")
-    lims[len(lims)-1] = lims[len(lims)-1].replace("}","")
-    lims[:]=[x.split(" ") for x in lims]
-    if horizontype == "hadec" :
-        limites = Table(names =["dec","limrise","limset"], dtype =("f4","f4","f4"))
-        return limites
-    elif horizontype == "altaz":
-        limites = Table(names =["azim","elev"], dtype =("f4","f4"))
-    for item in lims :
-        limites.add_row(item)
-    limites = limites*u.deg
-    return limites
-
-    
-def get_obs_info(sitename,pwd):
-    '''This function retrieves all the necessary info from ROS telescopes database table'''
-    conn = pymysql.connect(host='cador.obs-hp.fr', user='ros', password=pwd, db='ros')
-    error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
-    error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
-    error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)
-    error, altitude = get_db_info(conn, "telescopes", "altitude", "name", sitename)
-    error, sens = get_db_info(conn, "telescopes", "sens", "name", sitename)
-    error, horizontype = get_db_info(conn, "telescopes", "horizontype", "name", sitename)
-    error, horizondef = get_db_info(conn, "telescopes", "horizondef", "name", sitename)
-    error, limdecmin = get_db_info(conn, "telescopes", "limdecmin", "name", sitename)
-    error, limdecmax = get_db_info(conn, "telescopes", "limdecmax", "name", sitename)
-    error, limharise = get_db_info(conn, "telescopes", "limharise", "name", sitename)
-    error, limhaset = get_db_info(conn, "telescopes", "limhaset", "name", sitename)
-    
-    if error != 0 : 
-        print("Error recovering data")
-    #Turn location information into an EarthLocation object
-    location = transform_location(latitude, longitude, sens, altitude)
-    conn.close()
-    print(horizontype, horizondef,limharise, limhaset)
-    print("converting horizon")
-    print (horizondef, horizontype)
-    #Convert the horizon information into data Table of angle values
-    myhorizon = convert_horizon(horizondef,horizontype)
-    print(myhorizon)
-    hadeclims = (limdecmin,limdecmax,limharise,limhaset)
-    return location, myhorizon, horizontype, hadeclims,idtelescope
     
 
 if runmode == "run":
