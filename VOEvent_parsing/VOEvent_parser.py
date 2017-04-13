@@ -69,7 +69,7 @@ except:
     print("error: expected the database password for user ros inbetween \"s like \"****\" ")
 print ("initiating test counter")
 testcounter = 0
-testcycle = 100
+testcycle = 50
 try:
     runmode = str(sys.argv[3])
     print("mode",runmode)
