@@ -78,6 +78,8 @@ except:
             
 #Defining the functions for the core
 def post_request(rname,strat,priority,pwd):
+    '''Builds and posts a request on CADOR for the user alert. This just creates the request
+    for the new scenes to be posted to. Returns the idreq of the new request'''
     strat = "0"
     priority = "0"
     depotstring = build_request(rname,strat,priority,pwd)
@@ -89,7 +91,8 @@ def post_request(rname,strat,priority,pwd):
     return idreq
     
 def post_scene(prefix,idreq,entry,exps,filters,pwd):
-    
+    '''This turns the scene table line entry into a scene for CADOR
+    and posts it to the server'''
     ddate = "1"
     processing = "0"
     spriority = "0"
@@ -107,6 +110,7 @@ def post_scene(prefix,idreq,entry,exps,filters,pwd):
 
     return idscene, ra, dec, timeisot
 def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
+    '''Creates the XML string to submit a new scene to the CADOR REST API'''
     print()
     ra = str((int)(entry["coords"].ra.hms[0])) + ":" +\
         str((int)(entry["coords"].ra.hms[1])) + ":" +\
@@ -116,8 +120,6 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
         str((int)(abs(entry["coords"].dec.dms[2])))
     timeisot = entry["time"].isot
     print(ra,dec,timeisot)
-    
-
     parameters = {
     "description":"Depot de scene pour CADOR",
     "versionmsg":"",
@@ -169,6 +171,7 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     return stringform, ra ,dec, timeisot
     
 def build_request(rname,strat,priority,pwd):
+    '''Creates the XML REST string for a new request '''
     parameters = {"description":"Depot de requete pour CADOR",
                   "versionmsg": "req0.1",
                   "rname":      "rname",
@@ -191,6 +194,7 @@ def build_request(rname,strat,priority,pwd):
     return stringform
     
 def remove_request(idreq,pwd):
+    '''This will remove the request from CADOR and delete all the scenes'''
     parameters = {"description":"Depot de requete pour CADOR",
               "versionmsg": "req0.1",
               "rname":      "rname",
@@ -212,22 +216,27 @@ def remove_request(idreq,pwd):
     return idreq
 
 def getxmlval(root,tag):
+    ''' a simple function to retrieve a value from an XML etree object'''
     vals=[]
     for element in root.iter(tag=tag):
         vals.append(element.text)
     return vals
 
 def download_skymap(myurl,alertname,name):
+    '''This function actually downloads the file from an url then moves it to
+    the directory of the corresponding name.'''
     #subprocess.check_call(['curl', '-O', '--netrc', myurl])
     subprocess.check_call(['wget','--auth-no-challenge', myurl])
     shutil.move(name,os.path.join(alertname,name))
 
 def load_skymap(myfile):
+    '''Loads a healpix skymap'''
     hpx, header = hp.read_map(myfile, h=True, verbose=True)
     
     return hpx, header
 
 def skymap_properties(hpx):
+    '''Reads and displays some of the main properties of a skymap'''
     print ("Number of pixels:"); print (len(hpx))
 
     nside = hp.npix2nside(len(hpx))
@@ -239,19 +248,29 @@ def skymap_properties(hpx):
     
 
 def ratophi(ra):
+    '''Converts a RA value into a phi angle for healpy to use. Also uses checkphi
+    to check for overflows in the operation
+    ra*u.deg -> phi*u.rad'''
     myphi = np.deg2rad(ra)
     myphi = checkphi(myphi)
     return myphi
 def phitora(phi):
+    '''Converts a phi angle from healpy coordinates into RA angle
+    phi*u.rad -> ra*u.deg'''
     ra = np.rad2deg(phi)
     return ra
         
     
 def dectotheta(dec):
+    '''Converts a DEC value into a theta angle for healpy to use. Also uses checktheta
+    to check for overflows in the operation
+    dec*u.deg -> theta*u.rad'''
     theta = 0.5*np.pi - np.deg2rad(dec)
     theta = checktheta(theta)
     return theta
 def thetatodec(theta):
+    '''Converts a theta angle from healpy into a DEC angle
+    theta*u.rad -> dec*u.deg'''
     dec = np.rad2deg(0.5*np.pi - theta)
     if dec > 180 : print("error"); return -1000;
     if dec < -180 : print("error"); return -1000;
@@ -259,20 +278,28 @@ def thetatodec(theta):
     
     
 def checkphi(phi):
+    '''Checks for a possible overflow in the value of a phi angle
+    so that it remains consistant with the system used in healpy'''
     phi = phi % (np.pi*2)
     return phi    
     
     
 def checktheta(theta):
+    '''Checks for a possible overflow in the value of a phi angle
+    so that it remains consistant with the system used in healpy'''
     theta = theta % np.pi
     return theta
 
 def checkra(ra):
+    '''Checks for a possible overflow in the value of a RA angle
+    so that it remains consistant with the system used in healpy'''
     if type(ra) == float : ra = ra % 360
     else : print("error: need float type for checkra"); return;
     return ra
 
 def getcorners(ra,dec,field):
+    '''Just a convenient function that returns the corners of
+    a field of view from its center'''
     demichamp = field/2
     racorners = np.zeros(4)
     deccorners = np.zeros(4)
@@ -290,6 +317,9 @@ def frange(x, y, jump):
 
 
 def slicesky(d0, s0,s1,field):
+    '''This function builds a list of coordinates that cover the whole
+    sky with FoV of a givent instrument. Parameters d0, s0 and s1 are 
+    used to give tiling variations'''
 #d0, s0, s1 are variables that allow shifted and skew slicing
 #d0<field
 #s0<field
@@ -316,6 +346,8 @@ def slicesky(d0, s0,s1,field):
     
     
 def get_field_value(hpx,ra,dec,field):
+    '''This function returns the integral probability inside a disc field of view.
+    It is more reliable than the get_fast_field_value, but also slower.'''
     sq2 = 2**0.5
     nside = hp.npix2nside(len(hpx))
 #    pixel = hp.ang2pix(mynside, dectotheta(dec), ratophi(ra))
@@ -324,11 +356,13 @@ def get_field_value(hpx,ra,dec,field):
     totdisc = hpx[ipix_disc].sum()
     return totdisc
 def get_fast_field_value(hpx,ra,dec,field):
+    '''This returns the skymap pixel value of the center of a field'''
     nside = hp.npix2nside(len(hpx))
     mypix = hp.ang2pix(nside,dectotheta(dec),ratophi(ra))
     return hpx[mypix]
     
 def get_fields_value(hpx,myfieldsra,myfieldsdec, field):
+    '''This returns the disc integral values for a whole list of fields'''
     sq2 = 2**0.5
     nside = hp.npix2nside(len(hpx))
     prob=[]
@@ -344,6 +378,8 @@ def get_fields_value(hpx,myfieldsra,myfieldsdec, field):
     
 
 def calculate_efficiency(hpx, d0, s0, s1, nfields, fieldop):
+    '''This function determines the score of a given set of tiling parameters for the optimization.
+    The figure of merit is the sum value of the for the <nfields> higher fields of the tiling'''
     nside = hp.npix2nside(len(hpx))
     sq2 = 2**0.5
     keptfields = build_fields(hpx, d0,s0,s1,nfields,fieldop)
@@ -366,6 +402,7 @@ def calculate_efficiency(hpx, d0, s0, s1, nfields, fieldop):
         
         
 def optimize_quin(hpx, nfields, fieldaz):
+    '''This function returns uptimized tiling parameters based on their calculate_efficiency() score for <nfields>'''
     mymax, d0max, s0max, s1max = 0,0,0,0
     numberofiterations = 0
     for d0 in np.arange(0,fieldaz*3/4,fieldaz/4):
@@ -385,6 +422,9 @@ build_fields(hpx, a, b, c, 5, 4.2)
 
 '''
 def build_fields(hpx,d0, s0, s1, nfields, fieldsize):
+    '''This function is designed to build a list of the <nfield> fields that have 
+    the highest disc integral value on the hpx map.
+    Usually, this will be used with d0,s0 and s1 previously selected by optimize_quin()'''
     nside = hp.npix2nside(len(hpx))
     myfieldsra , myfieldsdec = slicesky(d0,s0,s1,fieldsize)
     
@@ -502,6 +542,8 @@ def process_gcn(payload, root):
 
 
 def get_db_info(connection, table, entry, keycolumn, keyvalue):
+    '''This utilitarian function retrieves a bit of information from a distant table.
+    The connection must first be established with pymysql.connect(), then passed in a 1st argument'''
     error = 0
     query = ""
     query = "SELECT " + entry + " FROM " + table + " WHERE " + keycolumn + "= " + keyvalue + ";"
@@ -514,10 +556,13 @@ def get_db_info(connection, table, entry, keycolumn, keyvalue):
     value = mycursor.fetchone()[0]
     return error, value
     
-'''This assumes that the horizondef absissa is monotonous and increasing!!!
-This assumes that the intervals cover ALL the possibilities
-It should check that the target is inside the interval '''
+
 def interpolate(dataset, target,horizontype):
+    '''This function is used to interpolate an horizon definition.
+    It works with altaz horizons but was adapted to ROS hadec horizons (pourly standardized)
+    This assumes that the horizondef absissa is monotonous and increasing!!!
+    This assumes that the intervals cover ALL the possibilities
+    It should check that the target is inside the interval '''
     print (target)
     if horizontype == "altaz":
 
@@ -547,12 +592,15 @@ def interpolate(dataset, target,horizontype):
 def checkhorizon(horizondef,horizontype):
     return
 def transform_location(latitude, longitude, sens, altitude):
+    '''This function returns an astropy Earthlocation object based on ROS location values'''
     if sens == 'E':
         location = astropy.coordinates.EarthLocation(longitude*u.deg, latitude*u.deg, altitude*u.m)
     elif sens == 'W':
         location = astropy.coordinates.EarthLocation(-longitude*u.deg, latitude*u.deg, altitude*u.m)
     return location
 def checksun(coordinates, time, mylocation):
+    '''This function checks for the presence of night at the site(-5° of sun elevation)
+    and an agular separation to the sun greater than 30°'''
     observable = 1
     astropy.coordinates.solar_system_ephemeris.set('builtin')
     SunObject = astropy.coordinates.get_sun(time)
@@ -565,6 +613,7 @@ def checksun(coordinates, time, mylocation):
         print("Too close to the sun")
     return observable
 def checkmoon(coordinates, time, mylocation):
+    '''This checks for a moon distance larger than 30°'''
     observable = 1
     astropy.coordinates.solar_system_ephemeris.set('builtin')
     MoonObject = astropy.coordinates.get_moon(time)
@@ -573,6 +622,8 @@ def checkmoon(coordinates, time, mylocation):
         print("Object too close to the moon")
     return observable
 def checkelev(coordinates, time, mylocation, horizondef, horizontype):
+    '''This makes a basic check for an elevation higher tha0 10° AND in case 
+    of an altaz horizon definition, checks for an elevation higher than this horizon.'''
     observable = 1
     #objaltaz = coordinates.transform_to(astropy.coordinates.AltAz(time), location=mylocation)
     objaltaz = coordinates.transform_to(astropy.coordinates.AltAz(location=mylocation, obstime=time))
@@ -589,6 +640,8 @@ def checkelev(coordinates, time, mylocation, horizondef, horizontype):
         print("Object below site horizon")
     return observable
 def checkhadec(coordinates, time, mylocation, hadeclims):
+    '''This function checks for compliance to simple hadec mount limits, in 
+    a format compliant to the ROS telescopes database table'''
     #hadeclims = (limdecmin,limdecmax,limharise,limhaset)
     observable = 1
     #objaltaz = coordinates.transform_to(astropy.coordinates.AltAz(time), location=mylocation)
@@ -618,7 +671,8 @@ def checkhadec(coordinates, time, mylocation, hadeclims):
     
     return observable
 def check_declination(latitude,declination):
-
+    '''This method is a preliminary check designed to eliminate targets never observable from
+    the latitude of the observatory, and reduce calculation steps. This assumes an elevation margin of 10°'''
     observable = 1
     if latitude > 0:
         if declination <  (latitude - 80*u.deg):
@@ -633,6 +687,7 @@ def check_declination(latitude,declination):
 
 
 def site_field(site):
+    '''This is a crude definition of each site's FoV'''
     for case in switch(site):
         if case("'Tarot_Calern'"):
             return 1.86
@@ -647,6 +702,7 @@ def site_field(site):
             return 0.5
             break
 def site_number(site):
+    '''This is a crude definition of each site's targeted number of fields'''
     for case in switch(site):
         if case("'Tarot_Calern'"):
             return 5
@@ -661,6 +717,8 @@ def site_number(site):
             return 5
             break
 def site_timings(site):
+    '''This is a crude definition of each site's timing parameters
+    as well as exposure scheme'''
     for case in switch(site):
         if case("'Tarot_Calern'"):
             settime = 30     
@@ -700,6 +758,10 @@ def site_timings(site):
             break
 
 def process_global(url,pwd,dbpwd,test=False):
+    '''This function is designed to do all the steps required for the scheduling of
+    a whole GW event followup for all the telescopes in the network, based solely on the url of a skymap.
+    warning: the URL is used assume the id of the event, so let's hope they do not change their url scheme for now
+    In case the alert is a test, the scenes will be teleted after 10s'''
     if test == True:
         print ("Ok, let's go through the drill one more time")
     else :
@@ -802,6 +864,8 @@ def process_global(url,pwd,dbpwd,test=False):
 '''"https://gracedb.ligo.org/apibasic/events/M131141/files/bayestar.fits.gz"'''
 '''"https://gracedb.ligo.org/apibasic/events/G277583/files/skyprobcc_cWB.fits"'''
 def main(hpx,header,site,pwd,dbpwd):
+    '''This function handles the scenes and planning creation for a single telescope.
+    It returns a list of scene entries in a table, ready to be submited to CADOR'''
     current_time = Time(datetime.utcnow(), scale='utc')
     print("Date is");print(current_time.value)
 
@@ -877,6 +941,8 @@ def main(hpx,header,site,pwd,dbpwd):
     return thefields,location,thescenes
 
 def replica_is_running():
+    '''This simple function checks if replica is running on this machine
+    It is useless unless replica runs locally'''
     ps_replica = subprocess.check_output(["ps","-edf"])
     if ps_replica.count("replica") > 0:
         return True
@@ -884,7 +950,10 @@ def replica_is_running():
         return False
     
 def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
+    '''Thid function regroups all observability check into one'''
     sunok = checksun(coords, time, location)
+    #Here the sunok is checked and return first to save computation time
+    #since night/day condition is a major cause of non-observability
     if sunok == 0: return 0
     moonok = checkmoon(coords, time, location)
     elevok = checkelev(coords, time, location, horizondef,horizontype)
@@ -895,6 +964,7 @@ def is_observable(coords,time,location,horizondef,horizontype,hadeclims):
     
 
 def next_sunset(mylocation, mytime):
+    '''This function returns a rough estimation of the next sunset time'''
     astropy.coordinates.solar_system_ephemeris.set('builtin')
     SunObject = astropy.coordinates.get_sun(mytime)
     sunaltaz = SunObject.transform_to(astropy.coordinates.AltAz(obstime=mytime, location=mylocation))
@@ -915,6 +985,8 @@ def next_sunset(mylocation, mytime):
             night = 1
     return set_time
 def build_cyclegrid(number,site,period):
+    '''This function returns a raw time grid for a certain that allow the site's telescope to observe
+    the entire <number> of fields in a single cycle. The grid is calculated over a given period (hours)'''
     settime,readoutTime,exps,filters = site_timings(site)
     timegrid = []
     
@@ -932,6 +1004,8 @@ def build_cyclegrid(number,site,period):
     timetable["date"]=timegrid
     return timetable,scenelength
 def build_finegrid(number,site):
+    '''This is similar to build_cyclegrid() but it takes into account the time shift
+    in the scheduling of one field to the next.'''
     settime,readoutTime,exps,filters = site_timings(site)
     timegrid = []
     
@@ -951,6 +1025,8 @@ def build_finegrid(number,site):
         
     
 def clean_table(fields):
+    '''This function just translates the rough fields table into a nice
+    table of SkyCoords() objects'''
     coords = astropy.coordinates.SkyCoord(ra=fields["ra"]*u.deg,dec=fields["dec"]*u.deg,frame="fk5")
     fields["coords"] = coords
     del fields["ra"]
@@ -959,6 +1035,7 @@ def clean_table(fields):
     return fields
     
 def convert_horizon(horizondef,horizontype):
+    '''This converts the string of ROS's horizondef into a suitable table of values'''
     lims = horizondef.split("} {")
     lims[0] = lims[0].replace("{","")
     lims[len(lims)-1] = lims[len(lims)-1].replace("}","")
@@ -975,6 +1052,7 @@ def convert_horizon(horizondef,horizontype):
 
     
 def get_obs_info(sitename,pwd):
+    '''This function retrieves all the necessary info from ROS telescopes database table'''
     conn = pymysql.connect(host='cador.obs-hp.fr', user='ros', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
