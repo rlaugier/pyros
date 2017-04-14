@@ -76,7 +76,7 @@ def frange(x, y, jump):
                 
 def get_obs_info(sitename,pwd):
     '''This function retrieves all the necessary info from ROS telescopes database'''
-    conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')
+    conn = pymysql.connect(host='cador.obs-hp.fr', user='ros', password=pwd, db='ros')
     error, idtelescope = get_db_info(conn, "telescopes", "idtelescope", "name", sitename)
     error, latitude = get_db_info(conn, "telescopes", "latitude", "name", sitename)
     error, longitude = get_db_info(conn, "telescopes", "longitude", "name", sitename)

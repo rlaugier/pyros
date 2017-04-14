@@ -378,7 +378,7 @@ def interpolate(dataset, target,horizontype):
             print ("error, target out of range")
             return value
         for index in np.arange(0,len(dataset["azim"])-1,1):# "-1" allows us to go from 0 to the penultimate
-            print("Between",dataset["azim"][index],"and ",dataset["azim"][index+1])
+            #print("Between",dataset["azim"][index],"and ",dataset["azim"][index+1])
             if ((dataset["azim"][index] <= target) and (dataset["azim"][index+1]>= target)):
                 #Interpolation of target in
                 value = dataset["elev"][index] + (target - dataset["azim"][index]) * (dataset["elev"][index+1] - dataset["elev"][index]) / (dataset["azim"][index+1] - dataset["azim"][index])
@@ -388,8 +388,8 @@ def interpolate(dataset, target,horizontype):
             print(target,value)
             return value
         else :
-            print ("horizon elevation at site is")
-            print (value)
+            #print ("horizon elevation at site is")
+            #print (value)
             return value
     elif horizontype == "hadec":
         print ("this function doesn't support hadec horizon yet")
@@ -430,7 +430,7 @@ def checkelev(coordinates, time, mylocation, horizondef, horizontype):
     objaltaz = coordinates.transform_to(astropy.coordinates.AltAz(location=mylocation, obstime=time))
     if objaltaz.alt <= 10*u.deg:
         observable = 0
-        print("Object too low (10°)")
+        #print("Object too low (10°)")
         return observable
     #This condition is assumed sufficient for unsupported hadec horizons
     if horizontype == "hadec":
