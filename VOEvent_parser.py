@@ -34,8 +34,8 @@ import os
 
 
 #internal pyros imports
-import pyros-utilities
-import cador-rest
+import pyrosutilities
+import cadorrest
 
 
 
@@ -147,7 +147,7 @@ def slicesky(d0, s0,s1,field):
 #d0<field
 #s0<field
 #s1<s0
-    startpoint = (0,0)
+
 #create a declination slicing
     decgrid = list(np.arange(-90 + d0,90,field))
     mylistra, mylistdec = [], []
@@ -186,7 +186,6 @@ def get_fast_field_value(hpx,ra,dec,field):
     
 def get_fields_value(hpx,myfieldsra,myfieldsdec, field):
     '''This returns the disc integral values for a whole list of fields'''
-    sq2 = 2**0.5
     nside = hp.npix2nside(len(hpx))
     prob=[]
     for indec in range(0, len(myfieldsra)):
@@ -204,7 +203,7 @@ def calculate_efficiency(hpx, d0, s0, s1, nfields, fieldop):
     '''This function determines the score of a given set of tiling parameters for the optimization.
     The figure of merit is the sum value of the for the <nfields> higher fields of the tiling'''
     nside = hp.npix2nside(len(hpx))
-    sq2 = 2**0.5
+
     keptfields = build_fields(hpx, d0,s0,s1,nfields,fieldop)
     totaldots = np.sum(keptfields["prob"])
     total= 0
@@ -526,15 +525,15 @@ def process_global(url,pwd,dbpwd,test=False):
     
 
     
-    settime,readoutTime,exps,filters = site_timings(site)
-    idreq = post_request(alertname + "autogen","0","90",pwd)
+    settime,readoutTime,exps,filters = pyrosutilities.site_timings(site)
+    idreq = cadorrest.post_request(alertname + "autogen","0","90",pwd)
     idscene = []
     ra = []
     dec = []
     timeisot = []
     for index in np.arange(0,len(scenes),1):
-        #post_scene(prefix,idreq,entry,exps,filters,pwd):
-        myidscene, myra, mydec, mytimeisot = post_scene(alertname+"_",idreq,scenes[index],exps,filters,pwd)
+        #cadorrest.post_scene(prefix,idreq,entry,exps,filters,pwd):
+        myidscene, myra, mydec, mytimeisot = cadorrest.post_scene(alertname+"_",idreq,scenes[index],exps,filters,pwd)
         idscene.append(myidscene)
         ra.append(myra)
         dec.append(mydec)
@@ -566,11 +565,11 @@ def process_global(url,pwd,dbpwd,test=False):
     ascii.write(scenes, os.path.join(alertname,'Planification_table.csv'), format='csv', fast_writer=False)
     if test == True:
         print ("This was just an exercise, let's delete the request now")
-        remove_request(idreq,pwd)
+        cadorrest.remove_request(idreq,pwd)
     else :
         print ("This was for real: the scenes will be observed")
 #        for i in np.arange(0,900,10):
-#            if replica_is_running():
+#            if pyrosutilities.replica_is_running():
 #                print("Waiting until replica has finished")
 #                sleep (10)
 #            else:
@@ -601,11 +600,11 @@ def main(hpx,header,site,pwd,dbpwd):
 ##################################################################################
 ###Site    
     #site = "'Tarot_Reunion'"
-    nfields = site_number(site)
+    nfields = pyrosutilities.site_number(site)
     print ("working on site: %s"% (site)); sys.stdout.flush()
-    location, horizondef, horizontype, hadeclims, idtelescope = get_obs_info(site,dbpwd)
-    total, a,b,c = optimize_quin(hpx, nfields, site_field(site))
-    myfields = build_fields(hpx, a, b, c, nfields*2, site_field(site))
+    location, horizondef, horizontype, hadeclims, idtelescope = pyrosutilities.get_obs_info(site,dbpwd)
+    total, a,b,c = optimize_quin(hpx, nfields, pyrosutilities.site_field(site))
+    myfields = build_fields(hpx, a, b, c, nfields*2, pyrosutilities.site_field(site))
     print (myfields); sys.stdout.flush()
     thefields = clean_table(myfields)
     print (thefields); sys.stdout.flush()
@@ -707,7 +706,7 @@ def next_sunset(mylocation, mytime):
 def build_cyclegrid(number,site,period):
     '''This function returns a raw time grid for a certain that allow the site's telescope to observe
     the entire <number> of fields in a single cycle. The grid is calculated over a given period (hours)'''
-    settime,readoutTime,exps,filters = site_timings(site)
+    settime,readoutTime,exps,filters = pyrosutilities.site_timings(site)
     timegrid = []
     
     #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime
@@ -726,7 +725,7 @@ def build_cyclegrid(number,site,period):
 def build_finegrid(number,site):
     '''This is similar to build_cyclegrid() but it takes into account the time shift
     in the scheduling of one field to the next.'''
-    settime,readoutTime,exps,filters = site_timings(site)
+    settime,readoutTime,exps,filters = pyrosutilities.site_timings(site)
     timegrid = []
     
     #scenelength = sum(images[np.nonzero(images)]) + len(images[np.nonzero(images)]) * settime

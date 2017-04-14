@@ -11,6 +11,8 @@ Created on Thu Apr 13 16:59:48 2017
 # Third-party imports
 
 import requests
+from pyrosutilities import getxmlval
+
 
 from lxml import etree
 
