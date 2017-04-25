@@ -52,7 +52,7 @@ def post_scene(prefix,idreq,entry,exps,filters,pwd):
     return idscene, ra, dec, timeisot
 def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     '''Creates the XML string to submit a new scene to the CADOR REST API'''
-    print()
+    #print()
     ra = str((int)(entry["coords"].ra.hms[0])) + ":" +\
         str((int)(entry["coords"].ra.hms[1])) + ":" +\
         str((int)(entry["coords"].ra.hms[2]))
@@ -60,7 +60,7 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
         str((int)(abs(entry["coords"].dec.dms[1]))) + ":" +\
         str((int)(abs(entry["coords"].dec.dms[2])))
     timeisot = entry["time"].isot
-    print(ra,dec,timeisot)
+    #print(ra,dec,timeisot)
     parameters = {
     "description":"Depot de scene pour CADOR",
     "versionmsg":"",

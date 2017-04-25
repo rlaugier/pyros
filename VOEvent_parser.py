@@ -323,7 +323,7 @@ def process_gcn(payload, root):
     
     # Print the alert
     print('Got VOEvent:')
-    print(payload)
+    #print(payload)
 
     # Respond only to 'test' events.
     # VERY IMPORTANT! Replce with the following line of code
@@ -336,6 +336,7 @@ def process_gcn(payload, root):
         print(testcounter); sys.stdout.flush()
         if testcounter == 0:
             print("We run the test this time")
+            print(payload)
             skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
             process_global(skymap_url,userpassword,databasepassword,test=True)
         else :
@@ -346,6 +347,7 @@ def process_gcn(payload, root):
     
     #This is what happens if the alert is NOT A TEST: we run global in non-test mode
     if root.attrib['role'] == 'observation' :
+        print(payload)
         skymap_url = root.find("./What/Param[@name='SKYMAP_URL_FITS_BASIC']").attrib['value']
         process_global(skymap_url,userpassword,databasepassword,test=False)
 
@@ -370,7 +372,7 @@ def interpolate(dataset, target,horizontype):
     This assumes that the horizondef absissa is monotonous and increasing!!!
     This assumes that the intervals cover ALL the possibilities
     It should check that the target is inside the interval '''
-    print (target)
+    #print (target)
     if horizontype == "altaz":
 
         value = 90*u.deg #this default value will prevent observation in case of a problem
