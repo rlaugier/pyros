@@ -77,7 +77,7 @@ def build_scene(prefix,idreq,entry,exps,filters,spriority,processing,ddate,pwd):
     "t3":exps[2],  
     "t4":exps[3],  
     "t5":exps[4],  
-    "t6":exps[0],  
+    "t6":exps[5],  
     "f1":filters[0],  
     "f2":filters[1],  
     "f3":filters[2],  

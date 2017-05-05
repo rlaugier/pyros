@@ -53,7 +53,7 @@ except:
     print("error: expected the database password for user ros inbetween \"s like \"****\" ")
 print ("initiating test counter")
 testcounter = 0
-testcycle = 50
+testcycle = 100
 try:
     runmode = str(sys.argv[3])
     print("mode",runmode)
@@ -362,7 +362,6 @@ def process_gcn(payload, root):
     # Read sky map
     skymap, header = get_skymap(root)
 
-'''conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')'''
 
 
 
@@ -528,6 +527,7 @@ def process_global(url,pwd,dbpwd,test=False):
 
     
     settime,readoutTime,exps,filters = pyrosutilities.site_timings(site)
+
     idreq = cadorrest.post_request(alertname + "autogen","0","90",pwd)
     idscene = []
     ra = []

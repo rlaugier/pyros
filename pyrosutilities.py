@@ -73,6 +73,7 @@ def frange(x, y, jump):
         yield x
         x += jump
         
+'''conn = pymysql.connect(host='tarot9.oca.eu', user='tarot', password=pwd, db='ros')'''
                 
 def get_obs_info(sitename,pwd):
     '''This function retrieves all the necessary info from ROS telescopes database'''
