@@ -171,7 +171,6 @@ def slicesky(d0, s0,s1,field):
 def get_field_value(hpx,ra,dec,field):
     '''This function returns the integral probability inside a disc field of view.
     It is more reliable than the get_fast_field_value, but also slower.'''
-    sq2 = 2**0.5
     nside = hp.npix2nside(len(hpx))
 #    pixel = hp.ang2pix(mynside, dectotheta(dec), ratophi(ra))
     xyz = hp.ang2vec(dectotheta(dec),ratophi(ra))
@@ -205,7 +204,7 @@ def calculate_efficiency(hpx, d0, s0, s1, nfields, fieldop):
     nside = hp.npix2nside(len(hpx))
 
     keptfields = build_fields(hpx, d0,s0,s1,nfields,fieldop)
-    totaldots = np.sum(keptfields["prob"])
+#    totaldots = np.sum(keptfields["prob"])
     total= 0
     prob_integral = []
     for indec in range(0, len(keptfields)):
@@ -218,7 +217,7 @@ def calculate_efficiency(hpx, d0, s0, s1, nfields, fieldop):
         prob_integral.append(totdisc)
         total += totdisc
     
-    efficiency = total / nfields
+#    efficiency = total / nfields
     #print (total)
     return total, prob_integral
         
@@ -317,7 +316,8 @@ def get_skymap(root):
 # Function to call every time a GCN is received.
 # Run only for notices of type LVC_INITIAL or LVC_UPDATE.
 @gcn.handlers.include_notice_types(
-    gcn.notice_types.LVC_INITIAL)
+    gcn.notice_types.LVC_INITIAL,
+    gcn.notice_types.LVC_TEST)
 def process_gcn(payload, root):
     global testcounter
     
